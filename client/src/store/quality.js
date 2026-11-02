@@ -28,14 +28,15 @@ export const PRESETS = {
     /**
      * Other players are drawn this far away - the whole lobby - and the nearest
      * `remoteAvatars` of them within `remoteAvatarDistance` as their real Boxity avatar
-     * (anyone else as the blocky figure, all of them one shared draw call). A Boxity
-     * avatar is ~100 triangles but one draw call per worn item too: on LOW the nearest
-     * five, close by, so a full room of well-dressed players stays inside a phone's
-     * draw-call budget. MEDIUM and HIGH show everyone.
+     * (anyone else as the blocky figure). On every preset that's everyone in the room:
+     * players want to see each other as themselves, across the whole lobby. A Boxity
+     * avatar is ~100 triangles and one draw call plus one per worn item, so a full room
+     * of 8 typically adds 20-40 draw calls; if a weak device can't keep up, the FPS
+     * monitor lowers the resolution (RENDER_SCALES) rather than taking avatars away.
      */
     remoteDrawDistance: 150,
-    remoteAvatars: 5,
-    remoteAvatarDistance: 60,
+    remoteAvatars: 7,
+    remoteAvatarDistance: 150,
     remoteNameDistance: 40,
     /** World labels fade out past this. */
     labelDistance: 70,
