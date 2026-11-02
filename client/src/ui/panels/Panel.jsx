@@ -69,7 +69,8 @@ export function Panel({ title, icon, width = 920, children, footer, onClose }) {
             marginTop: u(56),
             padding: `${u(52)} ${u(22)} ${u(22)}`,
             borderRadius: u(10),
-            background: 'linear-gradient(180deg, rgba(30, 33, 38, 0.94), rgba(18, 20, 24, 0.94))',
+            // As solid as the player's Boxity background_transparency setting (integration.js).
+            background: 'linear-gradient(180deg, rgb(30 33 38 / var(--panel-alpha, 0.94)), rgb(18 20 24 / var(--panel-alpha, 0.94)))',
             border: `${u(6)} solid #0b0c0e`,
             boxShadow: `inset 0 0 0 ${u(3)} rgba(255,255,255,0.08), 0 ${u(10)} ${u(30)} rgba(0,0,0,0.35)`,
             maxHeight: `calc(100vh - ${u(56)} - 24px)`,

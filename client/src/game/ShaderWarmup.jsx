@@ -1,6 +1,8 @@
 import { useThree } from '@react-three/fiber'
 import { useLayoutEffect } from 'react'
 
+import { linkPrograms } from './linkPrograms'
+
 /** Layer nothing lives on: the main camera looks at it while shaders compile. */
 const BLANK_LAYER = 31
 
@@ -42,6 +44,8 @@ export function ShaderWarmup({ onDone }) {
       .catch((err) => console.warn('[warmup] shader precompile failed', err))
       .finally(() => {
         if (cancelled) return
+        // Behind the loading screen: finish linking whatever the driver didn't.
+        linkPrograms(gl)
         performance.mark('pp:compile-end')
         camera.layers.set(0)
         onDone()

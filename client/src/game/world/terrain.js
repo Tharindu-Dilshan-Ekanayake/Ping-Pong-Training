@@ -1,93 +1,65 @@
-import { hash2, mulberry32 } from '@shared/rng'
+import { hash2 } from '@shared/rng'
 import { PLAZA } from '@shared/world'
 
 import { STYLE } from '../materials'
 import { PALETTE } from '../sceneStyle'
 
 /**
- * Terraced voxel hills ringing the plaza, plus blocky trees on top.
+ * The grandstands ringing the plaza, like a ping pong arena: rows of seats stepping up
+ * and back from the plaza's edge, each row in the next seat colour under a white rail,
+ * on a dark base, with flags along the top. The serve lane leaves northwards through a
+ * gap in them.
  *
- * Heights come from a smooth value-noise field quantised into terraces, sampled on a
- * coarse grid and greedy-merged into as few boxes as possible: a few hundred instances
- * for the whole ring rather than thousands of columns.
+ * Heights are sampled on a coarse grid (a row every CELL metres out from the plaza) and
+ * greedy-merged into as few boxes as possible: because every row is one height all the
+ * way round, the whole ring is a few hundred boxes, not thousands.
  */
 
 const CELL = 4
 const BOUNDS = { minX: -176, maxX: 156, minZ: -150, maxZ: 136 }
-/** The throw track leaves the plaza northwards through this gap in the hills. */
+/** The serve lane leaves the plaza northwards through this gap in the stands. */
 const CORRIDOR_HALF_WIDTH = 34
-const STEP = 2
+/** Each row of seats is this much higher than the one in front of it. */
+const RISE = 2
+/** The front row's height, and the top row's. */
+const FRONT = 2
+const TOP = 30
 
-function smooth(t) {
-  return t * t * (3 - 2 * t)
-}
-
-function valueNoise(x, z, scale, seed) {
-  const fx = x / scale
-  const fz = z / scale
-  const ix = Math.floor(fx)
-  const iz = Math.floor(fz)
-  const tx = smooth(fx - ix)
-  const tz = smooth(fz - iz)
-  const a = hash2(ix, iz, seed)
-  const b = hash2(ix + 1, iz, seed)
-  const c = hash2(ix, iz + 1, seed)
-  const d = hash2(ix + 1, iz + 1, seed)
-  return a + (b - a) * tx + (c - a) * tz + (a - b - c + d) * tx * tz
-}
-
-function distanceOutside(rect, x, z) {
-  const dx = Math.max(rect.minX - x, 0, x - rect.maxX)
-  const dz = Math.max(rect.minZ - z, 0, z - rect.maxZ)
-  return Math.hypot(dx, dz)
+/**
+ * How far (x, z) is outside `rect`, measured square (the larger of the two axes), so
+ * rows run straight along each side and meet at the corners, like a real stadium's.
+ */
+function squareOutside(rect, x, z) {
+  return Math.max(rect.minX - x, 0, x - rect.maxX, rect.minZ - z, z - rect.maxZ)
 }
 
 const CORRIDOR = { minX: -CORRIDOR_HALF_WIDTH, maxX: CORRIDOR_HALF_WIDTH, minZ: -10000, maxZ: PLAZA.minZ }
 
-/** Terrain height at a cell centre, or 0 where the ground is open. */
+/** Height of the stands at a cell centre, or 0 where the ground is open. */
 export function terrainHeight(x, z) {
-  if (distanceOutside(PLAZA, x, z) === 0) return 0
-  if (distanceOutside(CORRIDOR, x, z) === 0) return 0
-  const d = Math.min(distanceOutside(PLAZA, x, z), distanceOutside(CORRIDOR, x, z))
-  // A low first terrace right at the plaza edge, rising in big steps further out.
-  const base = d < 6 ? 4 : 6 + Math.floor(d / 14) * 5
-  const n = valueNoise(x, z, 28, 11) * 7 + valueNoise(x, z, 9, 23) * 2.5
-  const h = Math.round((base + n) / STEP) * STEP
-  return Math.min(34, Math.max(4, h))
+  const d = Math.min(squareOutside(PLAZA, x, z), squareOutside(CORRIDOR, x, z))
+  if (d <= 0) return 0
+  return Math.min(TOP, FRONT + Math.floor(d / CELL) * RISE)
 }
+
+/** The seat colour of the row whose top is at `h`. */
+const seatColor = (h) => PALETTE.seats[Math.floor(h / RISE) % PALETTE.seats.length]
 
 /**
- * Adds a blocky tiered tree standing on `base`.
- *
- * @param {import('../blocks').BlockSet} blocks
- * @param {() => number} rand
+ * A flag on a pole standing on `base`: a white pole and a coloured pennant, turned to
+ * fly the same way as every other.
  */
-/** Half the widest canopy tier of a scale-1 tree. */
-const TREE_HALF_WIDTH = 2.4
-
-export function addTree(blocks, x, base, z, scale = 1, rand = Math.random) {
-  const s = scale
-  const trunk = 3 * s
-  blocks.addOn(x, base, z, 0.9 * s, trunk, 0.9 * s, PALETTE.trunk)
-
-  const greens = PALETTE.leaves
-  const green = greens[Math.floor(rand() * greens.length)]
-  const tiers = [4.8, 3.6, 2.4]
-  let y = base + trunk - 0.4 * s
-  for (const width of tiers) {
-    const w = width * s
-    blocks.addOn(x, y, z, w, 1.7 * s, w, green)
-    y += 1.5 * s
-  }
-  blocks.addOn(x, y, z, 1.1 * s, 1.1 * s, 1.1 * s, green)
+function addFlag(blocks, x, base, z, color) {
+  blocks.addOn(x, base, z, 0.3, 5, 0.3, PALETTE.rail, STYLE.SMOOTH)
+  blocks.addOn(x + 1, base + 3.6, z, 1.8, 1.2, 0.12, color, STYLE.SMOOTH)
+  blocks.addOn(x, base + 5, z, 0.5, 0.5, 0.5, '#ffd23a', STYLE.GLOW)
 }
 
-/** Builds the hill ring into `blocks` and returns tree spots used (for tests/debug). */
+/** Builds the grandstands into `blocks`; returns how many flags were placed (for tests/debug). */
 export function buildTerrain(blocks, { treeDensity = 1 } = {}) {
   const cols = Math.ceil((BOUNDS.maxX - BOUNDS.minX) / CELL)
   const rows = Math.ceil((BOUNDS.maxZ - BOUNDS.minZ) / CELL)
   const heights = new Int16Array(cols * rows)
-
   for (let j = 0; j < rows; j += 1) {
     for (let i = 0; i < cols; i += 1) {
       const x = BOUNDS.minX + (i + 0.5) * CELL
@@ -103,10 +75,11 @@ export function buildTerrain(blocks, { treeDensity = 1 } = {}) {
     const depth = (run.j1 - run.j0 + 1) * CELL
     const x = BOUNDS.minX + run.i0 * CELL + width / 2
     const z = BOUNDS.minZ + run.j0 * CELL + depth / 2
-    // Sunk slightly so no seam shows where hills meet the ground plane.
-    blocks.addOn(x, -0.5, z, width, run.h + 0.5, depth, PALETTE.dirt, STYLE.TERRAIN)
+    // The row's block on the dark base (sunk a little so no seam shows at the ground),
+    // its seats on top, and a white rail along the seats' front.
+    blocks.addOn(x, -0.5, z, width, run.h - 0.1, depth, PALETTE.standBase, STYLE.SMOOTH)
+    blocks.addOn(x, run.h - 0.6, z, width, 0.6, depth, seatColor(run.h), STYLE.STUDS)
   }
-
   for (let j = 0; j < rows; j += 1) {
     const runs = []
     let i = 0
@@ -140,41 +113,29 @@ export function buildTerrain(blocks, { treeDensity = 1 } = {}) {
   }
   for (const run of open.values()) emit(run)
 
-  // Trees on the terraces, kept off the cliff edges so they don't overhang the plaza,
-  // and clear of each other: overlapping canopies of near-equal height flicker.
-  const rand = mulberry32(5)
-  const placed = []
-  let trees = 0
+  // The front row's white rail, along each side of the plaza (not across the lane).
+  const { minX, maxX, minZ, maxZ } = PLAZA
+  blocks.addOn((minX + maxX) / 2, FRONT, maxZ + 0.3, maxX - minX, 0.6, 0.3, PALETTE.rail, STYLE.GLOW)
+  for (const side of [-1, 1]) {
+    const x = side > 0 ? maxX + 0.3 : minX - 0.3
+    blocks.addOn(x, FRONT, (minZ + maxZ) / 2, 0.3, 0.6, maxZ - minZ, PALETTE.rail, STYLE.GLOW)
+    const cx = side * (CORRIDOR_HALF_WIDTH + (maxX - CORRIDOR_HALF_WIDTH) / 2)
+    blocks.addOn(cx, FRONT, minZ - 0.3, maxX - CORRIDOR_HALF_WIDTH, 0.6, 0.3, PALETTE.rail, STYLE.GLOW)
+  }
+
+  // Flags along the top rows, every few metres; fewer on LOW.
+  let flags = 0
+  const every = treeDensity < 0.5 ? 6 : 3
   for (let j = 1; j < rows - 1; j += 1) {
     for (let i = 1; i < cols - 1; i += 1) {
       const h = heights[j * cols + i]
-      if (h === 0) continue
-      if (hash2(i, j, 77) > 0.075 * treeDensity) continue
-      const flat =
-        heights[j * cols + i - 1] === h &&
-        heights[j * cols + i + 1] === h &&
-        heights[(j - 1) * cols + i] === h &&
-        heights[(j + 1) * cols + i] === h
-      if (!flat) continue
+      if (h !== TOP - RISE * 2) continue
+      if ((i + j) % every !== 0 || hash2(i, j, 77) > 0.6) continue
       const x = BOUNDS.minX + (i + 0.5) * CELL
       const z = BOUNDS.minZ + (j + 0.5) * CELL
-      const scale = 0.9 + rand() * 0.5
-      const reach = TREE_HALF_WIDTH * scale
-      if (placed.some((t) => Math.max(Math.abs(t.x - x), Math.abs(t.z - z)) < t.reach + reach)) continue
-      placed.push({ x, z, reach })
-      addTree(blocks, x, h, z, scale, rand)
-      trees += 1
+      addFlag(blocks, x, h, z, PALETTE.flags[(i * 7 + j) % PALETTE.flags.length])
+      flags += 1
     }
   }
-
-  // A few trees inside the plaza edge, as in the reference shots.
-  const plazaTrees = [
-    [PLAZA.minX + 4, PLAZA.maxZ - 5],
-    [PLAZA.maxX - 4, PLAZA.maxZ - 5],
-    [-26, PLAZA.maxZ - 3],
-    [26, PLAZA.maxZ - 3],
-  ]
-  for (const [x, z] of plazaTrees) addTree(blocks, x, 0, z, 1.1, rand)
-
-  return { trees }
+  return { flags }
 }

@@ -72,7 +72,7 @@ function PackButton({ index, amount, price, afford }) {
     actions.buyPack(index)
   }
   return (
-    <ChunkyButton gradient={PACK_GRADIENTS[index]} onClick={buy} title={`+${formatNumber(amount)} Health`} radius={8} border={5} style={{ width: u(290), height: u(76) }}>
+    <ChunkyButton gradient={PACK_GRADIENTS[index]} onClick={buy} title={`+${formatNumber(amount)} Power`} radius={8} border={5} style={{ width: u(290), height: u(76) }}>
       <Icon name="heart" size={u(62)} className="absolute" style={{ left: u(10) }} />
       <span className="relative" style={{ fontSize: u(48), marginLeft: u(30) }}>
         <StrokeText stroke={u(10)}>+{formatNumber(amount)}</StrokeText>
@@ -113,7 +113,7 @@ export function HealthBar() {
         </span>
         <span style={{ fontSize: u(36), marginBottom: u(4) }}>
           <StrokeText stroke={u(7)} gradient={BOOST}>
-            {formatMultiplier(boost)} Health Boost
+            {formatMultiplier(boost)} Power Boost
           </StrokeText>
         </span>
       </div>

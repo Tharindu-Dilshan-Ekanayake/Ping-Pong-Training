@@ -8,9 +8,9 @@ import { ChunkyButton, Price } from './parts'
 import { u } from './style'
 
 const PASSES = [
-  { product: 'healthX2', label: 'x2 Health', icon: 'heart', gradient: 'linear-gradient(135deg, #ff5fd2 0%, #8a5cff 35%, #2fb8ff 70%, #5cff9a 100%)' },
+  { product: 'healthX2', label: 'x2 Power', icon: 'heart', gradient: 'linear-gradient(135deg, #ff5fd2 0%, #8a5cff 35%, #2fb8ff 70%, #5cff9a 100%)' },
   { product: 'winsX2', label: 'x2 Wins', icon: 'trophy', gradient: 'linear-gradient(180deg, #fff27a 0%, #ffcb1f 48%, #ff9a0a 100%)' },
-  { product: 'autoRoll', label: 'Auto Roll', icon: 'tire', gradient: 'linear-gradient(180deg, #b6ff6a 0%, #57e83a 50%, #19b52a 100%)' },
+  { product: 'autoRoll', label: 'Auto Serve', icon: 'tire', gradient: 'linear-gradient(180deg, #b6ff6a 0%, #57e83a 50%, #19b52a 100%)' },
 ]
 
 /** One pass: its name over a big icon, and the price (or OWNED) underneath. */

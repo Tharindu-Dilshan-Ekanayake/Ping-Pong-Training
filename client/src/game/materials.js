@@ -38,6 +38,8 @@ export const STYLE = {
   WATER: 11,
   /** Treadmill belt: dark rubber with ribs scrolling east along the top. */
   BELT: 12,
+  /** Big two-tone checker squares over stud tiles: the serve lane's fields. */
+  CHECKER: 13,
 }
 
 /** Shared clock for animated styles; WorldClock advances it once per frame. */
@@ -185,11 +187,19 @@ const fragmentBody = /* glsl */ `
       float streak = isTop ? 0.5 + 0.5 * sin(vToyPos.x * 2.0 + vToyPos.z * 1.3 + uTime * 3.0) : smoothstep(0.7, 1.0, fall);
       col = mix(col, vec3(0.92, 0.98, 1.0), streak * 0.65);
       totalEmissiveRadiance += col * 0.25;
-    } else if (isTop) {
-      // Belt: ribs running east under the runner's feet.
-      vec2 bw = fwidth(vToyPos.xz);
-      float rib = smoothstep(0.72, 0.86, fract(vToyPos.x * 1.6 - uTime * 2.4));
-      col = mix(col, col * 2.4 + vec3(0.07), rib * 0.8 * (1.0 - smoothstep(0.15, 0.4, bw.x)));
+    } else if (style < 13.0) {
+      if (isTop) {
+        // Belt: ribs running east under the runner's feet.
+        vec2 bw = fwidth(vToyPos.xz);
+        float rib = smoothstep(0.72, 0.86, fract(vToyPos.x * 1.6 - uTime * 2.4));
+        col = mix(col, col * 2.4 + vec3(0.07), rib * 0.8 * (1.0 - smoothstep(0.15, 0.4, bw.x)));
+      }
+    } else {
+      // Checker: 3 m squares in two shades, studs on top, fading to flat far off.
+      vec2 cw = fwidth(vToyPos.xz);
+      float check = mod(floor(vToyPos.x / 3.0) + floor(vToyPos.z / 3.0), 2.0);
+      col *= mix(1.0, mix(0.86, 1.04, check), 1.0 - smoothstep(0.4, 1.2, max(cw.x, cw.y)));
+      col *= toyTile(sp);
     }
 
     diffuseColor.rgb = col;

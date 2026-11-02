@@ -34,3 +34,22 @@ export function burst({ x, y, z, count = 30, speed = 7, palette = 'confetti' }) 
 export function drainBursts(handle) {
   while (bursts.length) handle(bursts.shift())
 }
+
+/** A PERFECT hit's fire waiting to be started by FireBurst.jsx, or null. */
+let pendingFire = null
+
+/**
+ * Starts a burst at (x, y, z): off the paddle as it meets the ball - `kind` 'perfect' (a
+ * column of fire), 'great' (an electric-blue blast) or 'good' (a spray of sparkles) - or
+ * 'dust' billowing out of the ball's crater.
+ */
+export function fireBurst(x, y, z, kind = 'perfect') {
+  pendingFire = { x, y, z, kind }
+}
+
+/** The fire burst queued since last asked, or null; FireBurst.jsx calls this every frame. */
+export function takeFireBurst() {
+  const fire = pendingFire
+  pendingFire = null
+  return fire
+}

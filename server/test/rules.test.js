@@ -11,7 +11,6 @@ import {
   rebirthMultiplier,
   TIRES,
   TUTORIAL,
-  WALL_STOP,
   WORLD_PORTALS,
   WORLD_ZONES,
   WORLDS,
@@ -23,6 +22,7 @@ import {
   applyGemProduct,
   applyRebirth,
   applyRoll,
+  baseRollWins,
   applyTrain,
   buyHealthPack,
   buyTire,
@@ -144,21 +144,22 @@ test('skipping to a rebirth costs Wins', () => {
 
 // --- Rolling ---------------------------------------------------------------------
 
-test('a tire stops short of a wall its Health cannot break', () => {
-  const wall = ZONES[1]
-  const weak = rollOutcome(wall.wall - 1)
-  assert.ok(rollReach(wall.wall - 1) > wall.start, 'it would roll past the wall on open ground')
-  assert.equal(weak.blocked, 1)
-  assert.equal(weak.broken, 0)
-  assert.equal(weak.distance, wall.start - WALL_STOP)
+test('nothing blocks a serve: it always flies its full reach', () => {
+  for (const health of [0, ZONES[1].wall - 1, ZONES[1].wall, ZONES[20].wall * 3]) {
+    const outcome = rollOutcome(health)
+    assert.equal(outcome.blocked, -1)
+    assert.equal(outcome.distance, rollReach(health))
+  }
+  assert.equal(rollOutcome(ZONES[1].wall - 1).broken, 1, 'past the first stage without its pace Power')
 })
 
-test('enough Health smashes the wall and rolls on', () => {
-  const strong = rollOutcome(ZONES[1].wall)
-  assert.equal(strong.blocked, -1)
-  assert.equal(strong.broken, 1)
-  assert.ok(strong.distance > ZONES[1].start)
-  assert.equal(rollOutcome(0).distance, rollReach(0), 'nothing in the way of a short roll')
+test('Wins grow with distance', () => {
+  let last = -1
+  for (let m = 0; m <= 16000; m += 250) {
+    const wins = baseRollWins(m)
+    assert.ok(wins >= last, `${m} m pays at least as much as ${m - 250} m`)
+    last = wins
+  }
 })
 
 test('rolls pay Wins without using Health; a zone prize pays only once', () => {
@@ -176,6 +177,30 @@ test('rolls pay Wins without using Health; a zone prize pays only once', () => {
   assert.equal(second.best, false)
   assert.equal(p.stats.totalWins, first.wins + first.prize + second.wins)
   assert.equal(p.stats.rolls, 2)
+})
+
+test('the timing meter decides how hard you hit: distance and Wins', () => {
+  const serve = (accuracy) => {
+    const p = createProfile('a', 'A')
+    p.health = ZONES[3].wall
+    p.stats.bestZone = ZONES.length - 1
+    return applyRoll(p, 0, accuracy)
+  }
+  const auto = serve(null)
+  const weak = serve(0.1)
+  const good = serve(0.5)
+  const great = serve(0.8)
+  const perfect = serve(1)
+  assert.equal(auto.hit, null)
+  assert.deepEqual([weak.hit, good.hit, great.hit, perfect.hit], ['weak', 'good', 'great', 'perfect'])
+  // Further the closer to the middle; Auto Serve flies Power's distance exactly.
+  assert.equal(auto.distance, Math.round(rollReach(ZONES[3].wall) * 10) / 10)
+  assert.ok(weak.distance < good.distance && good.distance < great.distance && great.distance < perfect.distance)
+  assert.ok(perfect.distance > auto.distance && weak.distance < auto.distance * 0.75)
+  // And the best hits pay extra Wins on top of their distance's.
+  assert.ok(perfect.wins > auto.wins * 1.5)
+  // Out-of-range accuracy is clamped, not trusted.
+  assert.equal(serve(7).distance, perfect.distance)
 })
 
 test('the very first roll pays for the second tire, as the guide asks', () => {

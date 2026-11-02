@@ -4,9 +4,11 @@ import { createMusic } from './music'
  * Sound effects and the background music, synthesised with WebAudio: no audio files
  * to download.
  *
- * Browsers only allow audio after a user gesture, so the AudioContext is created on
- * the first tap/click/key (which also starts the music) and every sound before that is
- * silently skipped.
+ * Browsers only allow audio after a user gesture. The audio engine (AudioContext, echo,
+ * noise, music) is built while the game loads (prepareAudio), where it costs nothing
+ * anyone sees - built on the first tap instead, it froze whatever that tap did. It
+ * starts suspended; the first tap/click/key resumes it and starts the music, and every
+ * sound before that is silently skipped.
  */
 
 const MUTE_KEY = 'pp.muted'
@@ -46,14 +48,18 @@ function applyMaster() {
   if (master) master.gain.value = silent() ? 0 : BASE_GAIN * masterVolume
 }
 
-function unlock() {
-  if (ctx) {
-    if (ctx.state === 'suspended' && !adMuted) ctx.resume()
-    return
-  }
+/**
+ * Builds the audio engine, suspended: the context, the master gain, the echo, the noise
+ * and the music. Call while loading (GameScene does); the first gesture then only has
+ * to resume it. Safe to call again.
+ */
+export function prepareAudio() {
+  if (ctx) return
   const Ctor = window.AudioContext || window.webkitAudioContext
   if (!Ctor) return
   ctx = new Ctor()
+  // Created outside a gesture it starts suspended anyway; make sure of it until a tap.
+  if (ctx.state === 'running') ctx.suspend()
   master = ctx.createGain()
   applyMaster()
   master.connect(ctx.destination)
@@ -64,8 +70,19 @@ function unlock() {
   for (let i = 0; i < data.length; i += 1) data[i] = Math.random() * 2 - 1
   music = createMusic(ctx, master, noiseBuffer)
   music.setVolume(musicVolume)
-  music.start()
+}
+
+let musicStarted = false
+function unlock() {
+  // Built already while loading, normally; on the spot if a tap beat it to it.
+  prepareAudio()
+  if (!ctx) return
+  if (!musicStarted) {
+    musicStarted = true
+    music.start()
+  }
   if (adMuted) ctx.suspend()
+  else if (ctx.state === 'suspended') ctx.resume()
 }
 
 /**
@@ -312,12 +329,94 @@ export const sfx = {
   kickSwing() {
     if (ready('kickSwing', 200)) noise({ duration: 0.22, volume: 0.1, from: 600, to: 2200, q: 0.7 })
   },
-  /** The foot meeting the tire: a fat thump and a squeak of rubber. */
+  /** The paddle smashing the serve: a crisp tok over a fat thump. */
   kick() {
     if (!ready('kick', 200)) return
-    tone(130, { duration: 0.2, volume: 0.28, slideTo: 48 })
-    noise({ duration: 0.07, volume: 0.3, from: 1800, to: 500, q: 0.8 })
-    tone(900, { type: 'triangle', at: 0.01, duration: 0.09, volume: 0.07, slideTo: 420 })
+    tone(130, { duration: 0.2, volume: 0.22, slideTo: 48 })
+    tone(1500, { duration: 0.05, volume: 0.22, slideTo: 1050 })
+    tone(3100, { type: 'triangle', duration: 0.025, volume: 0.06 })
+    noise({ duration: 0.04, volume: 0.18, from: 4200, to: 2400, q: 1.4 })
+  },
+  /**
+   * The ball slamming into the lane from the top of its arc (`power` 0-1, how high it
+   * fell): a deep boom, the ground cracking open, then rubble pattering down.
+   */
+  groundSmash(power = 1) {
+    if (!ready('groundSmash', 400)) return
+    const p = 0.6 + 0.4 * power
+    tone(95, { duration: 0.75, volume: 0.34 * p, slideTo: 30 })
+    tone(52, { type: 'triangle', duration: 0.6, volume: 0.2 * p, slideTo: 28 })
+    noise({ duration: 0.55, volume: 0.34 * p, from: 1400, to: 110, q: 0.7 })
+    noise({ duration: 0.11, volume: 0.3 * p, from: 5400, to: 1600, q: 1.2 })
+    noise({ at: 0.06, duration: 0.08, volume: 0.18 * p, from: 4200, to: 2200, q: 1.6 })
+    noise({ at: 0.08, duration: 1.0, volume: 0.09 * p, from: 2800, to: 500, q: 0.6 })
+    for (let i = 0; i < 8; i += 1) {
+      tone(220 + Math.random() * 480, { type: 'triangle', at: 0.16 + i * 0.075 + Math.random() * 0.05, duration: 0.05, volume: 0.05 * p, slideTo: 130 })
+    }
+  },
+  /** The ball bouncing on after it lands (`n` 1, 2, 3...): a thud and a tok, softer each time. */
+  bounce(n = 1) {
+    if (!ready('bounce', 120)) return
+    const v = 0.16 / n
+    tone(150, { duration: 0.16, volume: v, slideTo: 60 })
+    tone(1250 - n * 90, { duration: 0.04, volume: v * 0.7, slideTo: 900 })
+  },
+  /** A cartoon falling whistle over `duration` seconds, as the ball drops from the top of its arc. */
+  fallWhistle(duration = 1.5) {
+    if (!ready('fallWhistle', 300) || duration < 0.3) return
+    tone(1800, { duration, volume: 0.045, slideTo: 420, attack: Math.min(0.3, duration * 0.2) })
+  },
+  /**
+   * A PERFECT hit: a crack of the paddle, fire bursting up with a deep fwoosh and a
+   * crackle, and a bright chime climbing up.
+   */
+  perfectHit() {
+    if (!ready('perfectHit', 300)) return
+    tone(2200, { duration: 0.04, volume: 0.2, slideTo: 1400 })
+    noise({ duration: 0.45, volume: 0.22, from: 600, to: 5200, q: 0.9 })
+    noise({ duration: 0.8, volume: 0.26, from: 180, to: 900, q: 0.6 })
+    tone(90, { duration: 0.5, volume: 0.14, slideTo: 160 })
+    for (let i = 0; i < 6; i += 1) noise({ at: 0.1 + i * 0.07 + Math.random() * 0.04, duration: 0.04, volume: 0.07, from: 3800, to: 2600, q: 2 })
+    ;[784, 1047, 1319, 1568, 2093].forEach((f, i) => bell(f, { at: 0.04 + i * 0.05, volume: 0.07, decay: 0.35 }))
+  },
+  /**
+   * A good hit's ball blasting away as time snaps back (`power` 0-1, the grade's): a deep
+   * boom and a rising whoosh.
+   */
+  perfectRelease(power = 1) {
+    if (!ready('perfectRelease', 300)) return
+    tone(70, { duration: 0.6, volume: 0.3 * power, slideTo: 32 })
+    noise({ duration: 0.5, volume: 0.28 * power, from: 300, to: 6000, q: 0.7 })
+    tone(440, { type: 'triangle', duration: 0.35, volume: 0.06 * power, slideTo: 1760 })
+  },
+  /** The paddle smashing the ball on a graded hit: its own sound for each grade. */
+  gradeHit(grade) {
+    if (grade === 'perfect') return sfx.perfectHit()
+    if (!ready('gradeHit', 300)) return
+    if (grade === 'great') {
+      // An electric crack, a zap and a rising chime.
+      tone(1800, { type: 'square', duration: 0.05, volume: 0.1, slideTo: 600 })
+      noise({ duration: 0.35, volume: 0.2, from: 2400, to: 7000, q: 1.4 })
+      ;[659, 988, 1319].forEach((f, i) => bell(f, { at: 0.03 + i * 0.05, volume: 0.07, decay: 0.3 }))
+    } else {
+      // A clean, bright tok and a sparkle.
+      tone(1500, { duration: 0.05, volume: 0.18, slideTo: 1050 })
+      bell(1568, { at: 0.03, volume: 0.06, decay: 0.25 })
+      bell(2093, { at: 0.08, volume: 0.05, decay: 0.25 })
+    }
+  },
+  /** A WEAK hit: a dull, soft plop off the edge of the paddle. */
+  weakHit() {
+    if (!ready('weakHit', 300)) return
+    tone(320, { duration: 0.12, volume: 0.12, slideTo: 140 })
+    tone(180, { type: 'triangle', at: 0.08, duration: 0.18, volume: 0.06, slideTo: 90 })
+  },
+  /** A ping pong ball off a paddle at a training table: a short, hollow tok. */
+  pong(soft = false) {
+    if (!ready('pong', 120)) return
+    const v = soft ? 0.05 : 0.1
+    tone(1350 + Math.random() * 150, { duration: 0.035, volume: v, slideTo: 1000 })
+    tone(2900, { type: 'triangle', duration: 0.018, volume: v * 0.3 })
   },
   /** The tire popping out in front of you when you press ROLL: a springy bloop. */
   tirePop() {

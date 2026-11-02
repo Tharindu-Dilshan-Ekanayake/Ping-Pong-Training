@@ -16,11 +16,12 @@ import {
   PAD_RADIUS,
   PAD_X,
   padCenterZ,
+  COURT_BACK_X,
   PORTALS,
   ROLL_ZONE,
   SHOP,
+  SPHINX_STAND,
   TRACK_START_Z,
-  WATERFALL,
 } from '@shared/world'
 
 import { PALETTE } from '../sceneStyle'
@@ -75,22 +76,23 @@ export function createGroundMap(maxTexture) {
 
   rect(MAP, PALETTE.plaza)
 
-  // The pads' apron along the west side, under them.
+  // The courts' apron along the east side, under the mats, out to the barriers.
   const padsMinZ = padCenterZ(PAD_COUNT - 1) - PAD_RADIUS - 2.5
   const padsMaxZ = padCenterZ(0) + PAD_RADIUS + 2.5
-  const padsEast = PAD_X + PAD_RADIUS + 2.5
-  bordered({ minX: PAD_X - PAD_RADIUS - 2.5, maxX: padsEast, minZ: padsMinZ, maxZ: padsMaxZ }, PALETTE.apron, PALETTE.apronEdge)
+  const padsWest = PAD_X - PAD_RADIUS - 2.5
+  bordered({ minX: padsWest, maxX: COURT_BACK_X + 2, minZ: padsMinZ, maxZ: padsMaxZ }, PALETTE.apron, PALETTE.apronEdge)
 
-  // Paths: a walkway along the pads, spawn up to the roll zone, spawn to the pads, the
-  // showroom, the eggs over to the Sphinx, and a spur up to the portal from the
-  // showroom path.
+  // Paths, like a running track: a walkway along the courts, spawn up to the serve
+  // zone, spawn over to the courts, across to the showroom, back to the eggs and the
+  // leaderboards, along the eggs to the Sphinx, and a spur up to the portal.
   const eggsZ = EGG_STANDS[0].z
   const paths = [
-    { minX: padsEast, maxX: padsEast + 5, minZ: padsMinZ, maxZ: padsMaxZ },
+    { minX: padsWest - 5, maxX: padsWest, minZ: padsMinZ, maxZ: padsMaxZ },
     { minX: -5, maxX: 5, minZ: ROLL_ZONE.maxZ, maxZ: 16 },
-    { minX: padsEast + 5, maxX: -5, minZ: 11, maxZ: 17 },
-    { minX: 5, maxX: SHOP.minX + 1, minZ: -12, maxZ: -6 },
-    { minX: 16, maxX: 46, minZ: eggsZ - 2, maxZ: eggsZ + 2 },
+    { minX: 5, maxX: padsWest - 5, minZ: 11, maxZ: 17 },
+    { minX: SHOP.maxX - 1, maxX: -5, minZ: -12, maxZ: -6 },
+    { minX: -5, maxX: 5, minZ: 16, maxZ: LEADERBOARDS[0].z - 1 },
+    { minX: SPHINX_STAND.x + 3, maxX: -5, minZ: eggsZ - 6, maxZ: eggsZ - 2 },
     ...PORTALS.map((p) => ({ minX: p.x - 3, maxX: p.x + 3, minZ: p.z + 3, maxZ: -12 })),
   ]
   for (const p of paths) bordered(p, PALETTE.path, PALETTE.pathEdge)
@@ -102,8 +104,14 @@ export function createGroundMap(maxTexture) {
   // A paved apron in front of the roll zone.
   bordered({ minX: ROLL_ZONE.minX - 5, maxX: ROLL_ZONE.maxX + 5, minZ: TRACK_START_Z, maxZ: ROLL_ZONE.maxZ + 6 }, PALETTE.apron, PALETTE.apronEdge)
 
-  // Egg plaza and the shop yard.
-  bordered({ minX: -18, maxX: 18, minZ: eggsZ - 4, maxZ: LEADERBOARDS[0].z - 1 }, PALETTE.apron, PALETTE.apronEdge)
+  // The egg row's apron, the leaderboards' and the Volcano egg's, and the shop yard.
+  bordered({ minX: SPHINX_STAND.x - 4, maxX: EGG_STANDS[0].x + 4, minZ: eggsZ - 2, maxZ: eggsZ + 5 }, PALETTE.apron, PALETTE.apronEdge)
+  bordered({ minX: LEADERBOARDS[0].x - 6, maxX: LEADERBOARDS[LEADERBOARDS.length - 1].x + 6, minZ: LEADERBOARDS[0].z - 2.5, maxZ: LEADERBOARDS[0].z + 2 }, PALETTE.apron, PALETTE.apronEdge)
+  for (const stand of EGG_STANDS) {
+    if (!stand.big) continue
+    disc(stand.x, stand.z, 6, PALETTE.apronEdge)
+    disc(stand.x, stand.z, 5, PALETTE.apron)
+  }
   rect({ minX: SHOP.minX, maxX: SHOP.maxX, minZ: SHOP.minZ, maxZ: SHOP.maxZ }, PALETTE.shopFloor)
 
   for (const p of PORTALS) {
@@ -111,9 +119,6 @@ export function createGroundMap(maxTexture) {
     disc(p.x, p.z, 5, PALETTE.apron)
   }
   disc(FREE_REWARD.x, FREE_REWARD.z, 4, PALETTE.apronEdge)
-
-  // Waterfall pool at the foot of the north cliff.
-  rect({ minX: WATERFALL.x - 6, maxX: WATERFALL.x + 6, minZ: WATERFALL.z, maxZ: WATERFALL.z + 5 }, PALETTE.water)
 
   const texture = new CanvasTexture(canvas)
   texture.colorSpace = SRGBColorSpace

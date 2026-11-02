@@ -6,12 +6,14 @@ import { WebGLRenderer } from 'three'
 import { useBloxity } from '../bloxity/BloxityContext'
 import { useBloxityStore } from '../bloxity/store'
 import { useGame } from '../store/game'
-import { useQuality } from '../store/quality'
+import { RENDER_SCALES, useQuality } from '../store/quality'
 import ErrorBoundary from '../ui/ErrorBoundary'
 import BlobShadows from './BlobShadows'
 import FollowCamera from './FollowCamera'
 import GainFX from './fx/GainFX'
 import WorldLabels from './labels/WorldLabels'
+import { prepareAudio } from '../audio/sfx'
+import { renderAllPetIcons } from './pets/petIcons'
 import Pets, { RewardCrab, SphinxShowcase } from './pets/Pets'
 import RemoteAvatars from './remote/RemoteAvatars'
 import RemotePlayers from './remote/RemotePlayers'
@@ -81,6 +83,32 @@ function ViewDistance({ far }) {
 }
 
 /**
+ * The camera's vertical field of view for a screen `aspect` wide: 60 degrees on a
+ * landscape screen; wider on one held upright, so the lane, the tables and the paddles
+ * still fit across a phone in portrait instead of being cropped to a narrow slit.
+ */
+const fovForAspect = (aspect) => (aspect >= 1 ? 60 : Math.min(84, 60 / Math.sqrt(Math.max(0.3, aspect))))
+
+/**
+ * Keeps the field of view right for the screen's shape as the phone turns. Left alone
+ * while you serve (Roll.jsx animates the lens then, from this as its base), and put
+ * right again once the serve is over.
+ */
+function AspectFov() {
+  const get = useThree((s) => s.get)
+  const width = useThree((s) => s.size.width)
+  const height = useThree((s) => s.size.height)
+  const rolling = useGame((s) => Boolean(s.roll))
+  useEffect(() => {
+    if (rolling) return
+    const { camera } = get()
+    camera.fov = fovForAspect(width / Math.max(1, height))
+    camera.updateProjectionMatrix()
+  }, [get, width, height, rolling])
+  return null
+}
+
+/**
  * The 3D view. Owns the renderer lifecycle: quality-driven settings, automatic preset
  * drops when FPS falls under budget, and recovery from a lost WebGL context.
  *
@@ -94,6 +122,8 @@ export function GameScene({ onReady }) {
   // A level picked in Settings rebuilds the whole 3D view with it.
   const rebuild = useQuality((s) => s.rebuild)
   const degrade = useQuality((s) => s.degrade)
+  const recover = useQuality((s) => s.recover)
+  const renderScale = useQuality((s) => RENDER_SCALES[s.renderStep])
   // Boxity ad break: nothing renders until it's over.
   const adBreak = useBloxityStore((s) => s.adBreak)
   const world = useGame((s) => s.profile.world)
@@ -109,6 +139,11 @@ export function GameScene({ onReady }) {
   const readySent = useRef(false)
 
   const handleWarmedUp = useCallback(() => {
+    // Every pet portrait, now, behind the loading screen: rendering one later reads
+    // pixels back from the GPU in the middle of play, a visible hitch (petIcons.js).
+    renderAllPetIcons()
+    // The audio engine too: built on the first tap instead, it froze that tap.
+    prepareAudio()
     setWarmedUp(true)
     setWarmedRebuild(useQuality.getState().rebuild)
   }, [])
@@ -159,8 +194,9 @@ export function GameScene({ onReady }) {
 
   // Never set state from the monitor's frame callback directly.
   const handleDecline = useCallback(() => setTimeout(degrade, 0), [degrade])
+  const handleIncline = useCallback(() => setTimeout(recover, 0), [recover])
 
-  const dpr = Math.min(settings.dpr, window.devicePixelRatio || 1)
+  const dpr = Math.min(settings.dpr, window.devicePixelRatio || 1) * renderScale
 
   // The renderer is built here rather than by R3F so its creation (the WebGL context,
   // often the slowest single step of start-up) is measured, and so the canvas is opaque:
@@ -199,7 +235,11 @@ export function GameScene({ onReady }) {
       >
         <fog attach="fog" args={[FOG.color, settings.fogNear, settings.viewDistance * 0.95]} />
         <ViewDistance far={settings.viewDistance} />
-        <PerformanceMonitor bounds={() => [45, Infinity]} onDecline={handleDecline} />
+        <AspectFov />
+        {/* Under 45 FPS: shed load (quality.degrade). Back over 58 with room to spare:
+            resolution comes back (quality.recover). After a few flips back and forth it
+            settles where it is rather than see-sawing. */}
+        <PerformanceMonitor bounds={() => [45, 58]} flipflops={4} onDecline={handleDecline} onIncline={handleIncline} />
 
         <Sky />
         <WorldSky world={world} />

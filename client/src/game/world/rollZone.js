@@ -1,28 +1,27 @@
-import { CylinderGeometry, TorusGeometry } from 'three'
+import { CylinderGeometry, SphereGeometry, TorusGeometry } from 'three'
 
 import { ROLL_ARCH, ROLL_ZONE } from '@shared/world'
 
 import { STYLE } from '../materials'
 
 const WHITE = '#f4f7fb'
-const BLUE = '#2f7fe6'
-const NAVY = '#1f3c96'
-const SKY = '#7fe2ff'
+const BLUE = '#ff6a3d'
+const NAVY = '#3a1f7a'
+const SKY = '#ff9ee0'
 const GOLD = '#ffd21f'
 
 const DISC = new CylinderGeometry(1, 1, 1, 28)
 const RIM = new TorusGeometry(1, 0.1, 8, 36)
-/** The crown tire's tread: a fat ring. */
-const TREAD = new TorusGeometry(0.78, 0.3, 10, 36)
+const BALL = new SphereGeometry(1, 16, 12)
 
 /** Height of the arch's beam, and the ROLL! sign hung on its face. */
 const ARCH_TOP = 11
 export const ARCH_SIGN = { width: 12, height: 3, y: ARCH_TOP - 1.6, faceZ: ROLL_ARCH.z + 1.05 }
 
 /**
- * The start of the track: the yellow ROLL ZONE across the canyon's mouth (painted with
- * its name, see signs.js), a glowing blue pad at each end, and a big start arch over
- * it with a ROLL! sign, crowned by a giant tire.
+ * The start of the lane: the purple SERVE ZONE across its mouth (painted with its name,
+ * see signs.js), a glowing pink pad at each end, and a big start arch over it in orange
+ * and purple with a SERVE! sign, crowned by a giant paddle and ball.
  *
  * Boxes go into the world's block set and the round parts into its props, so the whole
  * thing rides in those two draw calls. `detail` (off on LOW) adds the bulbs.
@@ -37,21 +36,21 @@ export function buildRollZone(blocks, props, { detail = true } = {}) {
   const w = maxX - minX
   const d = maxZ - minZ
 
-  // The strip: an orange border with the yellow fill raised on it, running right up to
-  // the canyon's edge.
-  blocks.addOn(cx, 0, cz + 0.3, w + 1.2, 0.05, d + 0.6, '#ff9a1f')
-  blocks.addOn(cx, 0.05, cz + 0.3, w, 0.05, d - 0.2, '#ffd54a')
-  // Chevrons on the strip, pointing down the track.
+  // The strip: a pink border with the purple fill raised on it, running right up to the
+  // lane's edge.
+  blocks.addOn(cx, 0, cz + 0.3, w + 1.2, 0.05, d + 0.6, '#ff5fd2')
+  blocks.addOn(cx, 0.05, cz + 0.3, w, 0.05, d - 0.2, '#8a6bff')
+  // Chevrons on the strip, pointing down the lane.
   for (const x of [-9, 9]) {
     for (const side of [-1, 1]) {
-      blocks.add(x + side * 0.7, 0.12, cz, 2.2, 0.04, 0.6, '#ff8a00', STYLE.SMOOTH, side * 0.75)
+      blocks.add(x + side * 0.7, 0.12, cz, 2.2, 0.04, 0.6, GOLD, STYLE.SMOOTH, side * 0.75)
     }
   }
-  // Glowing blue pads at both ends, like the reference's.
+  // Glowing pink pads at both ends.
   for (const side of [-1, 1]) {
     const x = side * (w / 2 + 2.2)
-    props.add(DISC, { position: [x, 0.08, cz + 0.3], scale: [2, 0.12, 2.6], color: '#e6f6ff' })
-    props.add(DISC, { position: [x, 0.15, cz + 0.3], scale: [1.6, 0.06, 2.2], color: '#3fd0ff', style: STYLE.GLOW })
+    props.add(DISC, { position: [x, 0.08, cz + 0.3], scale: [2, 0.12, 2.6], color: '#fff0fa' })
+    props.add(DISC, { position: [x, 0.15, cz + 0.3], scale: [1.6, 0.06, 2.2], color: '#ff5fd2', style: STYLE.GLOW })
   }
 
   // The start arch: striped pillars either side, a beam across the top carrying the
@@ -83,16 +82,14 @@ export function buildRollZone(blocks, props, { detail = true } = {}) {
     }
   }
 
-  // The crown: a giant tire standing on the beam, facing the plaza: a black tread ring
-  // round a red rim with a gold hub.
-  const tireY = ARCH_TOP + 5.2
-  blocks.addOn(0, ARCH_TOP + 1.5, archZ, 0.6, 1.2, 0.6, NAVY)
-  props.add(TREAD, { position: [0, tireY, archZ], scale: [3.4, 3.4, 4], color: '#1d1f22' })
-  props.add(DISC, { position: [0, tireY, archZ], rotation: [Math.PI / 2, 0, 0], scale: [2.6, 1.1, 2.6], color: '#ff3b3b' })
-  props.add(DISC, { position: [0, tireY, archZ], rotation: [Math.PI / 2, 0, 0], scale: [0.8, 1.4, 0.8], color: GOLD, style: STYLE.GLOW })
-  for (let i = 0; i < 5; i += 1) {
-    const a = (i / 5) * Math.PI * 2
-    blocks.add(Math.cos(a) * 1.4, tireY + Math.sin(a) * 1.4, archZ + 0.62, 1.9, 0.45, 0.12, WHITE, STYLE.SMOOTH, 0, 0, a)
-  }
-  props.add(RIM, { position: [0, tireY, archZ - 0.1], scale: [4.3, 4.3, 3], color: GOLD, style: STYLE.GLOW })
+  // The crown: a giant ping pong paddle standing on its handle on the beam, its red face
+  // to the plaza, with a giant ball beside it, and a gold ring glowing round the blade.
+  const bladeY = ARCH_TOP + 7.2
+  blocks.addOn(0, ARCH_TOP + 1.4, archZ, 1, 2.6, 0.8, '#c98f52', STYLE.SMOOTH)
+  blocks.addOn(0, ARCH_TOP + 2.2, archZ, 1.15, 0.3, 0.95, WHITE, STYLE.SMOOTH)
+  props.add(DISC, { position: [0, bladeY, archZ], rotation: [Math.PI / 2, 0, 0], scale: [3.4, 0.5, 3.4], color: '#1d1f22' })
+  props.add(DISC, { position: [0, bladeY, archZ + 0.05], rotation: [Math.PI / 2, 0, 0], scale: [3.15, 0.55, 3.15], color: '#ff3b3b' })
+  props.add(RIM, { position: [0, bladeY, archZ - 0.1], scale: [3.9, 3.9, 3], color: GOLD, style: STYLE.GLOW })
+  props.add(BALL, { position: [4.6, ARCH_TOP + 4.6, archZ + 0.6], scale: 1.5, color: '#ffffff' })
+  props.add(DISC, { position: [4.6, ARCH_TOP + 4.6, archZ + 0.6], rotation: [0, 0, 0.5], scale: [1.52, 0.3, 1.52], color: '#ff9a1e' })
 }

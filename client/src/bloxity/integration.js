@@ -22,7 +22,7 @@ import { getBloxityState, useBloxityStore } from './store'
 export const LEADERBOARDS = [
   { id: 'rebirths', label: 'Rebirths', order: 'desc', mode: 'best', format: 'number', reset: 'none' },
   { id: 'wins', label: 'Total Wins', order: 'desc', mode: 'best', format: 'compact', reset: 'none' },
-  { id: 'distance', label: 'Longest Roll (m)', order: 'desc', mode: 'best', format: 'compact', reset: 'none' },
+  { id: 'distance', label: 'Longest Serve (m)', order: 'desc', mode: 'best', format: 'compact', reset: 'none' },
   { id: 'playtime', label: 'Minutes Played', order: 'desc', mode: 'best', format: 'number', reset: 'none' },
 ]
 
@@ -90,6 +90,10 @@ const SETTINGS = {
   },
   enable_chat(value) {
     useBloxityStore.getState().setSetting({ chatEnabled: value !== 'false' })
+  },
+  background_transparency(value) {
+    // How solid the panels' dark backgrounds are (0.2-1): a CSS variable Panel.jsx reads.
+    document.documentElement.style.setProperty('--panel-alpha', String(parseNumber(value, 0.2, 1, 0.9)))
   },
   fullscreen(value, { initial, changed }, sdk) {
     // Only on a change the player made: the initial "false" must not exit a fullscreen

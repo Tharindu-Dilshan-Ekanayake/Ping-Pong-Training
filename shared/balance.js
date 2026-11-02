@@ -6,9 +6,13 @@
  * Shared by client (display) and server (authority): both always agree on costs and
  * multipliers because they read the same table.
  *
- * The loop: train on a pad for Health -> roll your tire (more Health rolls further and
- * smashes tougher walls) -> Wins -> better tires, eggs and pads -> rebirth at max
- * level for a bigger Health multiplier and a higher cap -> roll further still.
+ * The loop: rally at a ping pong table for Power -> serve your ball down the lane (more
+ * Power sends it further, and every metre pays) -> Wins -> better paddles, eggs and
+ * tables -> rebirth at max level for a bigger Power multiplier and a higher cap ->
+ * serve further still.
+ *
+ * Inside the code the old names stay: `health` is Power, a `tire` is a paddle, a `pad`
+ * is a training table and a `roll` is a serve. Only what players see was renamed.
  */
 
 // --- Health and levels --------------------------------------------------------------
@@ -95,13 +99,13 @@ export const REBIRTH_SKIP_ROLLS = 10
  * it instead.
  */
 export const PADS = [
-  { id: 'starter', name: 'Starter Pad', mult: 1, rebirths: 0 },
-  { id: 'speed', name: 'Speed Pad', mult: 2, rebirths: 1 },
-  { id: 'turbo', name: 'Turbo Pad', mult: 4, rebirths: 2 },
-  { id: 'nitro', name: 'Nitro Pad', mult: 10, rebirths: 4 },
-  { id: 'rocket', name: 'Rocket Pad', mult: 20, rebirths: 6 },
-  { id: 'diamond', name: 'Diamond', mult: 40, product: 'padVeryOp', tag: 'VERY OP!' },
-  { id: 'galaxy', name: 'Galaxy Planet', mult: 100, product: 'padBest', tag: 'BEST OVERALL!' },
+  { id: 'starter', name: 'Starter Table', mult: 1, rebirths: 0 },
+  { id: 'speed', name: 'Speed Table', mult: 2, rebirths: 1 },
+  { id: 'turbo', name: 'Turbo Table', mult: 4, rebirths: 2 },
+  { id: 'nitro', name: 'Nitro Table', mult: 10, rebirths: 4 },
+  { id: 'rocket', name: 'Rocket Table', mult: 20, rebirths: 6 },
+  { id: 'diamond', name: 'Diamond Table', mult: 40, product: 'padVeryOp', tag: 'VERY OP!' },
+  { id: 'galaxy', name: 'Galaxy Table', mult: 100, product: 'padBest', tag: 'BEST OVERALL!' },
 ]
 
 // --- Tires ------------------------------------------------------------------------
@@ -115,56 +119,56 @@ export const PADS = [
  * list, the crazier and shinier it gets. About x2.6 power for x2.8-x3.3 the Wins each.
  */
 export const TIRES = [
-  { id: 'bicycle', name: 'Orange Slice', power: 1, cost: 0, rarity: 'common' },
+  { id: 'bicycle', name: 'Orange Paddle', power: 1, cost: 0, rarity: 'common' },
   // Cheap enough to buy with the Wins from your very first roll.
-  { id: 'mountain', name: 'Lime Slice', power: 3, cost: 1, rarity: 'common' },
-  { id: 'wood', name: 'Wooden Wheel', power: 5, cost: 15, rarity: 'common' },
-  { id: 'stone', name: 'Stone Wheel', power: 12, cost: 75, rarity: 'uncommon' },
-  { id: 'cookie', name: 'Giant Cookie', power: 30, cost: 300, rarity: 'uncommon' },
-  { id: 'pizza', name: 'Pizza Wheel', power: 75, cost: 1200, rarity: 'rare' },
-  { id: 'donut', name: 'Donut', power: 200, cost: 4500, rarity: 'rare' },
-  { id: 'watermelon', name: 'Watermelon', power: 500, cost: 16000, rarity: 'rare' },
-  { id: 'monster', name: 'Cheese Wheel', power: 1250, cost: 55000, rarity: 'epic' },
-  { id: 'mint', name: 'Peppermint Candy', power: 3500, cost: 180000, rarity: 'epic' },
-  { id: 'silver', name: 'Silver Coin', power: 9000, cost: 600000, rarity: 'epic' },
-  { id: 'ice', name: 'Ice Cream', power: 23000, cost: 2e6, rarity: 'epic' },
-  { id: 'gold', name: 'Gold Coin', power: 60000, cost: 6e6, rarity: 'legendary' },
-  { id: 'lava', name: 'Lava Rock', power: 155000, cost: 17e6, rarity: 'legendary' },
-  { id: 'platinum', name: 'Sushi Roll', power: 400000, cost: 48e6, rarity: 'legendary' },
-  { id: 'emerald', name: 'Slime Ball', power: 1.05e6, cost: 135e6, rarity: 'legendary' },
-  { id: 'ruby', name: 'Burger', power: 2.7e6, cost: 380e6, rarity: 'mythic' },
-  { id: 'diamond', name: 'Diamond Tire', power: 7e6, cost: 1.05e9, rarity: 'mythic' },
-  { id: 'rainbow', name: 'Rainbow Candy', power: 1.8e7, cost: 3e9, rarity: 'mythic' },
-  { id: 'unicorn', name: 'Unicorn Cloud', power: 4.8e7, cost: 8.5e9, rarity: 'mythic' },
-  { id: 'galaxy', name: 'Galaxy Tire', power: 1.25e8, cost: 2.4e10, rarity: 'secret' },
-  { id: 'dragon', name: 'Dragon Scale', power: 3.3e8, cost: 6.8e10, rarity: 'secret' },
-  { id: 'cosmic', name: 'Birthday Cake', power: 8.6e8, cost: 1.9e11, rarity: 'secret' },
-  { id: 'infinity', name: 'Infinity Crystal', power: 2.2e9, cost: 5.4e11, rarity: 'secret' },
+  { id: 'mountain', name: 'Lime Paddle', power: 3, cost: 1, rarity: 'common' },
+  { id: 'wood', name: 'Wooden Paddle', power: 5, cost: 15, rarity: 'common' },
+  { id: 'stone', name: 'Stone Paddle', power: 12, cost: 75, rarity: 'uncommon' },
+  { id: 'cookie', name: 'Cookie Paddle', power: 30, cost: 300, rarity: 'uncommon' },
+  { id: 'pizza', name: 'Pizza Paddle', power: 75, cost: 1200, rarity: 'rare' },
+  { id: 'donut', name: 'Donut Paddle', power: 200, cost: 4500, rarity: 'rare' },
+  { id: 'watermelon', name: 'Melon Paddle', power: 500, cost: 16000, rarity: 'rare' },
+  { id: 'monster', name: 'Cheese Paddle', power: 1250, cost: 55000, rarity: 'epic' },
+  { id: 'mint', name: 'Peppermint Paddle', power: 3500, cost: 180000, rarity: 'epic' },
+  { id: 'silver', name: 'Silver Paddle', power: 9000, cost: 600000, rarity: 'epic' },
+  { id: 'ice', name: 'Ice Cream Paddle', power: 23000, cost: 2e6, rarity: 'epic' },
+  { id: 'gold', name: 'Golden Paddle', power: 60000, cost: 6e6, rarity: 'legendary' },
+  { id: 'lava', name: 'Lava Paddle', power: 155000, cost: 17e6, rarity: 'legendary' },
+  { id: 'platinum', name: 'Sushi Paddle', power: 400000, cost: 48e6, rarity: 'legendary' },
+  { id: 'emerald', name: 'Slime Paddle', power: 1.05e6, cost: 135e6, rarity: 'legendary' },
+  { id: 'ruby', name: 'Burger Paddle', power: 2.7e6, cost: 380e6, rarity: 'mythic' },
+  { id: 'diamond', name: 'Diamond Paddle', power: 7e6, cost: 1.05e9, rarity: 'mythic' },
+  { id: 'rainbow', name: 'Rainbow Paddle', power: 1.8e7, cost: 3e9, rarity: 'mythic' },
+  { id: 'unicorn', name: 'Unicorn Paddle', power: 4.8e7, cost: 8.5e9, rarity: 'mythic' },
+  { id: 'galaxy', name: 'Galaxy Paddle', power: 1.25e8, cost: 2.4e10, rarity: 'secret' },
+  { id: 'dragon', name: 'Dragon Paddle', power: 3.3e8, cost: 6.8e10, rarity: 'secret' },
+  { id: 'cosmic', name: 'Cake Paddle', power: 8.6e8, cost: 1.9e11, rarity: 'secret' },
+  { id: 'infinity', name: 'Infinity Paddle', power: 2.2e9, cost: 5.4e11, rarity: 'secret' },
 ]
 
 // --- Rolling ----------------------------------------------------------------------
 
 /**
- * How far a tire rolls: 0 Health still rolls ROLL_BASE metres, and the first gate is
- * reached with the Health its wall needs, less WALL_MARGIN; between gates distance
- * follows Health (in log terms) from one gate's mark to the next. So the gates' Health
- * sets the pace, and their spacing - each stage a little longer than the last - is just
- * how it looks. See logic.rollReach.
+ * How far a serve flies: 0 Power still sends it ROLL_BASE metres, and each stage's start
+ * is reached with the Power in its `wall`, less WALL_MARGIN; in between, distance
+ * follows Power (in log terms) from one stage's start to the next. So the stages'
+ * `wall` Power sets the pace. Nothing on the lane stops the ball: there are no gates.
+ * See logic.rollReach.
  */
 export const ROLL_BASE = 60
 export const ROLL_H0 = 50
-/** A gate's wall needs this many times the Health that just reaches it. */
+/** A stage's `wall` is this many times the Power that just reaches its start. */
 export const WALL_MARGIN = 1.3
 
 /**
- * The track's sixty stages, each behind a gate with a wooden wall across it, each a
- * little longer than the one before (100 m, 106 m, 112 m ... about 450 m). `theme` picks
- * the stage's look (one of twenty, so later stages are new places in familiar colours).
- * `wall` = Health needed to smash through it (a tire with less crashes into it and
- * breaks); each needs about twice the last, a touch more further on. `winsPerMeter`
- * pays for every metre rolled in the stage; `smash` is the Wins for breaking the wall on
- * any roll, and `discover` a one-off prize the first time you ever reach the stage.
- * Generated by scripts/gen-stages.py.
+ * The lane's sixty stages: stretches of distance, each a little longer than the one
+ * before (100 m, 106 m, 112 m ... about 450 m), with no gates between them - just a new
+ * name and sky. `theme` picks the sky (one of twenty). `wall` = the Power that paces how
+ * far a serve flies (see ROLL_BASE); each about twice the last. `winsPerMeter` pays for
+ * every metre flown in the stage - the further out, the more each metre pays - and
+ * `discover` is a one-off prize the first time you ever reach the stage. `smash` is
+ * left over from the template's gates and no longer paid. Generated by
+ * scripts/gen-stages.py.
  */
 export const ZONES = [
   { id: 'grassy', name: 'Grassy Meadow', theme: 'grassy', start: 0, wall: 0, winsPerMeter: 0.006, smash: 0, discover: 0 },
@@ -229,9 +233,6 @@ export const ZONES = [
   { id: 'beyond', name: 'The Beyond', theme: 'cosmic', start: 15818, wall: 3.5e20, winsPerMeter: 1.7e7, smash: 4.6e9, discover: 1.2e10 },
 ]
 
-/** A tire that can't break a wall stops this far short of it, bounced back off it. */
-export const WALL_STOP = 2.5
-
 /** Wins pickups down the track: first at 40 m, then every 80 m. */
 export const TROPHY_FIRST = 40
 export const TROPHY_SPACING = 80
@@ -247,6 +248,39 @@ export const ROLL_LAUNCH = 0.8
 export const rollDuration = (distance) => ROLL_LAUNCH + 3 + 2.2 * Math.log(1 + distance / 60)
 /** The result popup after you stop, before you're back at the start. */
 export const ROLL_RECOVERY = 2.2
+
+/**
+ * The serve's timing meter: a needle swings across the bar and you stop it. `accuracy`
+ * is 1 dead centre and 0 at either end. Where you stop it decides how hard you hit:
+ * how far the ball flies (hitReach: up to +20% dead centre, down to -45% at the very
+ * edge) and, for the best hits, extra Wins on top (`bonus`). Auto Serve skips the meter:
+ * a plain x1 hit.
+ */
+/**
+ * Seconds for the needle to swing across the bar and back. It swings like a pendulum -
+ * slow at the ends, fastest through the middle - and starts each serve at a random spot
+ * going a random way, so PERFECT takes watching it, not a rhythm learned by heart.
+ */
+export const METER_PERIOD = 1.25
+/**
+ * Grades by `min` accuracy: PERFECT is the middle 12% of the bar, GREAT 30%, GOOD 60%.
+ * With the pendulum swing the needle is inside PERFECT only ~48 ms each pass (GREAT
+ * ~120 ms): a real test of timing, still fair on a phone.
+ */
+export const HIT_GRADES = [
+  { id: 'perfect', min: 0.88, bonus: 1.5, label: 'PERFECT!' },
+  { id: 'great', min: 0.7, bonus: 1.2, label: 'GREAT!' },
+  { id: 'good', min: 0.4, bonus: 1, label: 'GOOD' },
+  { id: 'weak', min: 0, bonus: 1, label: 'WEAK HIT...' },
+]
+const clampAccuracy = (accuracy) => Math.min(1, Math.max(0, accuracy))
+/** The grade for a meter `accuracy` (0-1), or null for a serve without the meter. */
+export const hitGrade = (accuracy) => (Number.isFinite(accuracy) ? HIT_GRADES.find((g) => clampAccuracy(accuracy) >= g.min) : null)
+/**
+ * How far a hit at meter `accuracy` sends the ball, as a share of what its Power alone
+ * would: 0.55 at the edge, 1.2 dead centre; 1 for a serve without the meter.
+ */
+export const hitReach = (accuracy) => (Number.isFinite(accuracy) ? 0.55 + 0.65 * clampAccuracy(accuracy) : 1)
 
 // --- Pets & eggs ------------------------------------------------------------------
 
@@ -309,7 +343,7 @@ export const MULTI_HATCH = 3
 export const POTION_DURATION_MS = 5 * 60 * 1000
 
 export const ITEMS = {
-  potionHealth: { name: 'x2 Health Potion', kind: 'potion', boost: 'health', durationMs: POTION_DURATION_MS },
+  potionHealth: { name: 'x2 Power Potion', kind: 'potion', boost: 'health', durationMs: POTION_DURATION_MS },
   potionWins: { name: 'x2 Wins Potion', kind: 'potion', boost: 'wins', durationMs: POTION_DURATION_MS },
   eggMeadow: { name: 'Grass Egg', kind: 'egg', egg: 'meadow' },
   eggSunset: { name: 'Sunset Egg', kind: 'egg', egg: 'sunset' },
@@ -322,9 +356,9 @@ export const DAILY_INTERVAL_MS = 24 * 60 * 60 * 1000
 export const DAILY_REWARDS = [
   { label: 'x2 Wins', icon: 'potionWins', sub: '5m', grant: { item: 'potionWins' } },
   { label: 'Dragon', icon: 'pet:dragon', sub: 'x1', grant: { pet: 'dragon' } },
-  { label: 'x2 Health', icon: 'potionHealth', sub: '5m', grant: { item: 'potionHealth' } },
+  { label: 'x2 Power', icon: 'potionHealth', sub: '5m', grant: { item: 'potionHealth' } },
   { label: 'Unicorn Egg', icon: 'egg:unicorn', sub: 'x1', grant: { item: 'eggUnicorn' } },
-  { label: 'x2 Health', icon: 'potionHealth', sub: '5m', grant: { item: 'potionHealth' } },
+  { label: 'x2 Power', icon: 'potionHealth', sub: '5m', grant: { item: 'potionHealth' } },
   { label: 'x2 Wins', icon: 'potionWins', sub: '5m', grant: { item: 'potionWins' } },
   { label: 'Volcano Egg', icon: 'egg:volcano', sub: 'x1', grant: { item: 'eggVolcano' } },
 ]
@@ -335,12 +369,12 @@ export const DAILY_REWARDS = [
  */
 export const PLAYTIME_REWARDS = [
   { minutes: 3, label: '+10 Wins', icon: 'trophy', grant: { wins: 10 } },
-  { minutes: 8, label: 'x2 Health', icon: 'potionHealth', grant: { item: 'potionHealth' } },
+  { minutes: 8, label: 'x2 Power', icon: 'potionHealth', grant: { item: 'potionHealth' } },
   { minutes: 15, label: 'Grass Egg', icon: 'egg:meadow', grant: { item: 'eggMeadow' } },
   { minutes: 25, label: 'x2 Wins', icon: 'potionWins', grant: { item: 'potionWins' } },
   { minutes: 35, label: '+250 Wins', icon: 'trophy', grant: { wins: 250 } },
   { minutes: 45, label: 'Sunset Egg', icon: 'egg:sunset', grant: { item: 'eggSunset' } },
-  { minutes: 60, label: 'x2 Health', icon: 'potionHealth', grant: { item: 'potionHealth' } },
+  { minutes: 60, label: 'x2 Power', icon: 'potionHealth', grant: { item: 'potionHealth' } },
   { minutes: 90, label: 'Unicorn Egg', icon: 'egg:unicorn', grant: { item: 'eggUnicorn' } },
 ]
 
@@ -365,7 +399,7 @@ export const WORLD_PORTALS = {
 /**
  * World 2, through the portal once you hold WORLD_PORTALS.world2.wins: the same track
  * and gates, stage for stage, renamed and repainted in a new order (it opens in Candy
- * Land), and every metre, trophy, smash and first-visit prize on it pays `wins` times
+ * Land), and every metre, trophy and first-visit prize on it pays `wins` times
  * as much. Its gates need the same Health as World 1's - a harder World 2 would pay
  * less than World 1 right after each rebirth - so going over is always worth it, and
  * coming back (the same portal) costs nothing.
@@ -465,11 +499,11 @@ export const zonesOf = (world) => WORLD_ZONES[world] ?? ZONES
  * is bought with them. `pass` = permanent unlock; `consumable` = grants every time.
  */
 export const SHOP = {
-  healthX2: { name: 'x2 Health', price: 400, kind: 'pass' },
+  healthX2: { name: 'x2 Power', price: 400, kind: 'pass' },
   winsX2: { name: 'x2 Wins', price: 2500, kind: 'pass' },
-  autoRoll: { name: 'Auto Roll', price: 150, kind: 'pass' },
-  padVeryOp: { name: 'VERY OP! Pad', price: 150000, kind: 'pass' },
-  padBest: { name: 'BEST OVERALL! Pad', price: 2500000, kind: 'pass' },
+  autoRoll: { name: 'Auto Serve', price: 150, kind: 'pass' },
+  padVeryOp: { name: 'VERY OP! Table', price: 150000, kind: 'pass' },
+  padBest: { name: 'BEST OVERALL! Table', price: 2500000, kind: 'pass' },
   sphinx: { name: 'Sphinx', price: 2500000, kind: 'consumable', grant: { pet: 'sphinx' }, stock: 1000 },
 }
 
@@ -479,14 +513,14 @@ export const SHOP = {
  * packs grow with you: `winsRolls` max-level rolls' worth of Wins.
  */
 export const GEM_PRODUCTS = {
-  wins_small: { name: 'Pile of Wins', blurb: '10 max-level rolls of Wins', icon: 'trophy', grant: { winsRolls: 10 } },
-  wins_big: { name: 'Mountain of Wins', blurb: '60 max-level rolls of Wins', icon: 'trophy', grant: { winsRolls: 60 } },
-  potion_bundle: { name: 'Potion Bundle', blurb: '3 x2 Health + 3 x2 Wins potions', icon: 'potionHealth', grant: { items: { potionHealth: 3, potionWins: 3 } } },
+  wins_small: { name: 'Pile of Wins', blurb: '10 max-level serves of Wins', icon: 'trophy', grant: { winsRolls: 10 } },
+  wins_big: { name: 'Mountain of Wins', blurb: '60 max-level serves of Wins', icon: 'trophy', grant: { winsRolls: 60 } },
+  potion_bundle: { name: 'Potion Bundle', blurb: '3 x2 Power + 3 x2 Wins potions', icon: 'potionHealth', grant: { items: { potionHealth: 3, potionWins: 3 } } },
   volcano_eggs: { name: '3 Volcano Eggs', blurb: 'The best pets in the game', icon: 'egg:volcano', grant: { items: { eggVolcano: 3 } } },
-  auto_roll: { name: 'Auto Roll', blurb: 'Rolls for you on the Roll Zone', icon: 'tire', grant: { pass: 'autoRoll' } },
-  health_x2: { name: 'x2 Health', blurb: 'Double every Health gain, forever', icon: 'heart', grant: { pass: 'healthX2' } },
-  wins_x2: { name: 'x2 Wins', blurb: 'Double every roll’s Wins, forever', icon: 'trophy', grant: { pass: 'winsX2' } },
-  pad_best: { name: 'Galaxy Pad', blurb: 'Unlocks the x100 Galaxy Pad', icon: 'portal', grant: { pass: 'padBest' } },
+  auto_roll: { name: 'Auto Serve', blurb: 'Serves for you on the Serve Zone', icon: 'tire', grant: { pass: 'autoRoll' } },
+  health_x2: { name: 'x2 Power', blurb: 'Double every Power gain, forever', icon: 'heart', grant: { pass: 'healthX2' } },
+  wins_x2: { name: 'x2 Wins', blurb: 'Double every serve’s Wins, forever', icon: 'trophy', grant: { pass: 'winsX2' } },
+  pad_best: { name: 'Galaxy Table', blurb: 'Unlocks the x100 Galaxy Table', icon: 'portal', grant: { pass: 'padBest' } },
 }
 
 /**
@@ -494,7 +528,7 @@ export const GEM_PRODUCTS = {
  * and hyphens. `cooldownMs` keeps a player from chaining them.
  */
 export const AD_REWARDS = {
-  'health-potion': { label: 'x2 Health Potion', icon: 'potionHealth', grant: { item: 'potionHealth' }, cooldownMs: 3 * 60 * 1000 },
+  'health-potion': { label: 'x2 Power Potion', icon: 'potionHealth', grant: { item: 'potionHealth' }, cooldownMs: 3 * 60 * 1000 },
   'wins-potion': { label: 'x2 Wins Potion', icon: 'potionWins', grant: { item: 'potionWins' }, cooldownMs: 3 * 60 * 1000 },
 }
 
@@ -520,18 +554,18 @@ export const HEALTH_PACKS = [
  * `health`, once you have that much); after the last the guide is done.
  */
 export const TUTORIAL = [
-  { text: 'Hop on a training pad to gain Health', event: 'train', target: 'pad0', health: 30 },
-  { text: 'Roll your tire to earn Wins', event: 'roll', target: 'roll' },
-  { text: 'Buy a new tire with your Wins!', event: 'buyTire', target: 'tires' },
+  { text: 'Step up to a ping pong table to gain Power', event: 'train', target: 'pad0', health: 30 },
+  { text: 'Serve the ball down the track to earn Wins', event: 'roll', target: 'roll' },
+  { text: 'Buy a new paddle with your Wins!', event: 'buyTire', target: 'tires' },
 ]
 
 export const BADGES = {
-  firstRoll: { name: 'First Roll' },
+  firstRoll: { name: 'First Serve' },
   firstRebirth: { name: 'First Rebirth' },
   firstPet: { name: 'Pet Owner' },
-  firstWall: { name: 'Wall Smasher' },
+  firstWall: { name: 'Stage Explorer' },
   kilometer: { name: 'Kilometre Club' },
-  space: { name: 'Space Roller' },
+  space: { name: 'Space Smasher' },
   cosmic: { name: 'Cosmic Champion' },
   world2: { name: 'World Traveller' },
 }

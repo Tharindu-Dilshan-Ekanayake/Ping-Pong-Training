@@ -31,14 +31,14 @@ export function handleServerEvent(type, payload) {
         sfx.rebirth()
         burst({ ...atPlayer(), count: 60, speed: 9 })
       } else if (game.profileLoaded && payload.profile.ownedTires.length > before.ownedTires.length) {
-        // A new tire: a shower of confetti and its name up in lights.
+        // A new paddle: a shower of confetti and its name up in lights.
         sfx.buy()
         sfx.wins()
         burst({ ...atPlayer(2.5), count: 60, palette: 'confetti', speed: 9 })
         const tire = TIRES.find((t) => t.id === payload.profile.equippedTire)
         // The first tire bought ends the tutorial: say so too.
         const done = before.tutorialStep < TUTORIAL.length && payload.profile.tutorialStep >= TUTORIAL.length
-        if (tire) game.showToast(`NEW TIRE: ${tire.name}!${done ? ' Tutorial complete - have fun!' : ''}`)
+        if (tire) game.showToast(`NEW PADDLE: ${tire.name}!${done ? ' Tutorial complete - have fun!' : ''}`)
       }
       break
     }
@@ -57,10 +57,12 @@ export function handleServerEvent(type, payload) {
       }
       break
 
-    case 'roll':
+    case 'roll': {
       sfx.tirePop()
+      // (How well it was timed shows as the paddle meets the ball: rollControl.paddleHit.)
       beginRoll(payload)
       break
+    }
 
     case 'pack':
       sfx.buy()
@@ -92,7 +94,7 @@ export function handleServerEvent(type, payload) {
       sfx.rebirth()
       burst({ ...atPlayer(2), count: 60, palette: 'confetti', speed: 9 })
       const world = WORLDS[payload.world]
-      game.showToast(payload.world === 1 ? `WELCOME TO ${world.name.toUpperCase()}! x${world.wins} Wins on every roll!` : `Back in ${world.name}!`)
+      game.showToast(payload.world === 1 ? `WELCOME TO ${world.name.toUpperCase()}! x${world.wins} Wins on every serve!` : `Back in ${world.name}!`)
       break
     }
 

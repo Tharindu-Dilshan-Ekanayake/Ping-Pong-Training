@@ -29,12 +29,12 @@ const ICONS = {
 }
 
 const BLURBS = {
-  healthX2: 'Double every Health gain, forever',
-  winsX2: 'Double the Wins from every roll, forever',
-  autoRoll: 'Rolls your tire for you on the Roll Zone',
+  healthX2: 'Double every Power gain, forever',
+  winsX2: 'Double the Wins from every serve, forever',
+  autoRoll: 'Serves for you on the Serve Zone',
   padVeryOp: 'Unlocks the x40 Diamond Pad',
   padBest: 'Unlocks the x100 Galaxy Pad',
-  sphinx: `Limited: x${formatNumber(PETS.sphinx.mult)} Health pet`,
+  sphinx: `Limited: x${formatNumber(PETS.sphinx.mult)} Power pet`,
 }
 
 const BLURB_STYLE = { color: '#3a2a10', fontFamily: 'system-ui, sans-serif', fontWeight: 700 }

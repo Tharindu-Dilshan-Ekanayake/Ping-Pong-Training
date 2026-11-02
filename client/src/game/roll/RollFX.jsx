@@ -10,7 +10,7 @@ import { sharedMaterials, STYLE } from '../materials'
 import { perWorld } from '../worldLook'
 import { COS, SIN, TIRE_SIZE } from './path'
 import { roll } from './rollControl'
-import { ZONE_THEMES } from './track'
+import { ZONE_THEMES } from './themes'
 
 /** Spray pieces in flight at once. (Each tire's own trail is TireTrail.) */
 const SPRAY = 72

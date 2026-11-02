@@ -142,39 +142,41 @@ const star = svg(
   `<path d="M50 8l12 25 27 4-20 19 5 27-24-13-24 13 5-27-20-19 27-4z" fill="#ffffff" stroke="${OUT}" stroke-width="6" stroke-linejoin="round"/>`,
 )
 
-/** The Health heart, as in the reference: glossy red with a white shine and a dark outline. */
-const HEART_PATH = 'M50 88C44 82 12 62 9 38 7 22 18 11 31 11c9 0 15 5 19 12 4-7 10-12 19-12 13 0 24 11 22 27-3 24-35 44-41 50z'
+/**
+ * Power (the code's `health`): a chunky lightning bolt, glossy yellow with a white shine.
+ * Still named `heart`, so every place that showed Health shows Power.
+ */
 const heart = svg(
-  `<path d="${HEART_PATH}" fill="url(#ht-g)" stroke="${OUT}" stroke-width="6" stroke-linejoin="round"/>
-  <path d="M22 30c2-7 8-10 14-9" fill="none" stroke="#fff" stroke-width="6" stroke-linecap="round" opacity=".85"/>
-  <circle cx="20" cy="40" r="3.4" fill="#fff" opacity=".85"/>`,
+  `<path d="M58 6L18 56h24l-8 38 48-54H56z" fill="url(#ht-g)" stroke="${OUT}" stroke-width="6" stroke-linejoin="round"/>
+  <path d="M52 16L28 48" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".8"/>`,
   vgrad('ht-g', [
-    [0, '#ff8aa4'],
-    [0.45, '#ff3b5c'],
-    [1, '#c4102e'],
+    [0, '#fffbd0'],
+    [0.45, '#ffd21f'],
+    [1, '#ff8a00'],
   ]),
 )
 
-/** A chunky tire seen side on: knobbly black tread round a blue rim with a gold hub. */
-const tireKnobs = Array.from({ length: 16 }, (_, i) => {
-  const a = (i / 16) * Math.PI * 2
-  const x = 50 + Math.cos(a) * 41
-  const y = 50 + Math.sin(a) * 41
-  return `<rect x="${(x - 6).toFixed(1)}" y="${(y - 5).toFixed(1)}" width="12" height="10" rx="2" transform="rotate(${((a * 180) / Math.PI).toFixed(1)} ${x.toFixed(1)} ${y.toFixed(1)})"/>`
-}).join('')
+/**
+ * A ping pong paddle: red rubber blade with a white shine on a wooden handle, and a
+ * ball. Still named `tire`, so every place that showed a tire shows a paddle.
+ */
 const tire = svg(
-  `<g fill="#26282e" stroke="${OUT}" stroke-width="4">${tireKnobs}</g>
-  <circle cx="50" cy="50" r="38" fill="#2b2e35" stroke="${OUT}" stroke-width="6"/>
-  <circle cx="50" cy="50" r="23" fill="url(#ti-g)" stroke="${OUT}" stroke-width="5"/>
-  <g stroke="#fff" stroke-width="4.5" stroke-linecap="round">
-    <path d="M50 31v13M50 56v13M31 50h13M56 50h13M37 37l8 8M55 55l8 8M63 37l-8 8M45 55l-8 8"/>
+  `<g transform="rotate(-35 50 50)">
+    <rect x="42" y="56" width="16" height="38" rx="6" fill="url(#pd-h)" stroke="${OUT}" stroke-width="6"/>
+    <circle cx="50" cy="36" r="30" fill="url(#pd-g)" stroke="${OUT}" stroke-width="6"/>
+    <path d="M32 26c4-8 11-12 19-13" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".7"/>
   </g>
-  <circle cx="50" cy="50" r="7" fill="#ffd23a" stroke="${OUT}" stroke-width="4"/>
-  <path d="M24 34c4-8 11-13 19-15" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity=".5"/>`,
-  vgrad('ti-g', [
-    [0, '#8fe0ff'],
-    [1, '#1f7fe6'],
-  ]),
+  <circle cx="80" cy="78" r="12" fill="#ffffff" stroke="${OUT}" stroke-width="5"/>
+  <path d="M74 74c2-3 5-4 8-4" fill="none" stroke="#c9d3e0" stroke-width="3" stroke-linecap="round"/>`,
+  vgrad('pd-g', [
+    [0, '#ff8a7a'],
+    [0.5, '#ff3b3b'],
+    [1, '#c4102e'],
+  ]) +
+    vgrad('pd-h', [
+      [0, '#f2c48a'],
+      [1, '#b87a40'],
+    ]),
 )
 
 /** A round potion flask with a cork, filled with `liquid` and a small badge icon. */

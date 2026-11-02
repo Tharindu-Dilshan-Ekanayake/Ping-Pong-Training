@@ -47,7 +47,7 @@ test('Boxity URLs come from the environment, production only as the fallback', (
   assert.equal(local.matchmakerUrl, 'https://play.bloxity.io')
   assert.equal(local.portalUrl, 'https://bloxity.io')
   assert.equal(local.staticUrl, 'https://static.bloxity.io')
-  assert.equal(local.gameSlug, '1-tire-rolling')
+  assert.equal(local.gameSlug, 'ping-pong-training')
   assert.equal(local.hosted, false)
   assert.equal(hosted.apiUrl, 'https://api.stage.example', 'trailing slash trimmed')
   assert.equal(hosted.gameSlug, 'tire')

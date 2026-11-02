@@ -1,16 +1,18 @@
 import { useFrame, useThree } from '@react-three/fiber'
-import { Suspense, useEffect, useRef, useState } from 'react'
-import { Vector3 } from 'three'
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { Matrix4, Vector3 } from 'three'
 
 import { ROLL_LAUNCH } from '@shared/balance'
+import { PAD_YAW } from '@shared/world'
 
 import { remotePlayers } from '../../net/remotePlayers'
 import { getQuality } from '../../store/quality'
 import { runtime } from '../runtime'
 import { emoteFromAnim } from '../../bloxity/emotes'
-import { padBounce, padTireTop } from '../padBounce'
+import { RALLY_IMPACT } from '../playerPose'
 import { BloxityAvatar } from '../PlayerAvatar'
-import { tireWidth } from '../tire'
+import { HELD_PADDLE_SIZE, HOLD_POSITION, HOLD_QUATERNION, leapAt, rallyPhase } from '../pong'
+import { createTireMesh, tireMatrix } from '../tire'
 
 /** How often the set of fully drawn players is reconsidered. */
 const PICK_MS = 500
@@ -18,20 +20,29 @@ const PICK_MS = 500
 const MAX_SPEED = 10.875
 /** Facing down the track, as your own character does to kick off a roll. */
 const TRACK_YAW = Math.PI
-/** Training on a pad, facing out over the plaza, as your own character does. */
-const PAD_YAW = Math.PI / 2
-const bounce = { height: 0, vy: 0, squash: 0 }
-
 const _up = new Vector3(0, 1, 0)
+const _m = new Matrix4()
+/** A held paddle's place in the hand (pong.HOLD_*), as a matrix. */
+const HOLD = new Matrix4()
+
+/**
+ * The hand of each fully drawn player (placed by avatarRig.placeHand), by session id:
+ * RemotePaddles draws a paddle in every one, all in one draw call.
+ */
+const hands = new Map()
 
 /**
  * One other player as their real Bloxity avatar, dressed as they are and posed by the
  * same playerPose as yours, from what the network says they're doing: walking pace,
- * bouncing on their tire on a pad (RemotePlayers draws the tire), jumping. While they roll they stay at the Roll Zone; their tire is
- * the ghost tire rolling down the track (roll/Roll.jsx).
+ * rallying at a training table (RemotePlayers draws the ball), jumping. While they serve
+ * they stay at the Serve Zone; their ball is the ghost ball flying down the track
+ * (roll/Roll.jsx). Their paddle is in their hand (RemotePaddles).
  */
 function RemoteAvatar({ sessionId, look }) {
   const groupRef = useRef(null)
+  const handRef = useRef(null)
+  /** This player's entry in `hands`: made once, updated in place every frame. */
+  const held = useRef({ hand: null, tireId: null })
   const lastY = useRef(null)
   const motionRef = useRef({ time: 0, speed: 0, grounded: true, maxSpeed: MAX_SPEED, vy: 0, stride: 0 })
 
@@ -52,31 +63,68 @@ function RemoteAvatar({ sessionId, look }) {
     m.kick = kicking ? sinceRoll / ROLL_LAUNCH : -1
     group.visible = true
     group.position.copy(r.position)
+    // Their jump smash, as high as their hit was good.
+    m.leap = kicking ? leapAt(ghost.hit, m.kick) : 0
+    group.position.y += m.leap
     group.quaternion.setFromAxisAngle(_up, kicking ? TRACK_YAW : running ? PAD_YAW : r.yaw)
-    if (running) {
-      padBounce(_state.clock.elapsedTime, bounce)
-      group.position.y += padTireTop(tireWidth(r.tireId)) * (1 - 0.15 * bounce.squash) + bounce.height
+    // At a table: a swing every rally, as yours does.
+    m.hit = running ? (rallyPhase(_state.clock.elapsedTime) + RALLY_IMPACT) % 1 : -1
+    if (handRef.current) {
+      held.current.hand = handRef.current
+      held.current.tireId = r.tireId
+      hands.set(sessionId, held.current)
     }
 
     const speed = running ? 0 : r.speed
     m.speed = speed
-    m.grounded = running ? bounce.height < 0.12 : r.anim !== 'jump'
+    m.grounded = r.anim !== 'jump'
     // A Boxity emote they're playing (stood still while it lasts).
     m.emote = emoteFromAnim(r.anim)
     if (m.emote) m.speed = 0
     // Vertical speed from the interpolated height, smoothed: rising vs falling.
     const y = r.position.y
-    if (running) m.vy = bounce.vy
-    else if (lastY.current !== null) m.vy += ((y - lastY.current) / Math.max(delta, 1e-3) - m.vy) * 0.3
+    if (lastY.current !== null) m.vy += ((y - lastY.current) / Math.max(delta, 1e-3) - m.vy) * 0.3
     lastY.current = y
     m.stride += delta * (5 + 6 * Math.min(1, speed / MAX_SPEED))
   })
 
+  useEffect(() => () => hands.delete(sessionId), [sessionId])
+
   return (
     <group ref={groupRef}>
-      <BloxityAvatar equipped={look?.equipped} proportions={look?.proportions} motionRef={motionRef} targetHeight={1.8} />
+      <BloxityAvatar equipped={look?.equipped} proportions={look?.proportions} motionRef={motionRef} handRef={handRef} targetHeight={1.8} />
+      <group ref={handRef} />
     </group>
   )
+}
+
+/** Every fully drawn player's paddle, in their hand: one instanced mesh for them all. */
+function RemotePaddles({ max }) {
+  const ref = useRef(null)
+  const paddles = useMemo(() => createTireMesh(max), [max])
+  useEffect(
+    () => () => {
+      paddles.geometry.dispose()
+      paddles.dispose()
+    },
+    [paddles],
+  )
+  useFrame(() => {
+    const mesh = ref.current
+    if (!mesh) return
+    let n = 0
+    for (const { hand, tireId } of hands.values()) {
+      if (n >= max) break
+      hand.updateWorldMatrix(true, false)
+      tireMatrix(HOLD_POSITION, HOLD_QUATERNION, HELD_PADDLE_SIZE, tireId, HOLD)
+      mesh.setMatrixAt(n, _m.multiplyMatrices(hand.matrixWorld, HOLD))
+      mesh.setStyle(n, tireId)
+      n += 1
+    }
+    mesh.count = n
+    mesh.instanceMatrix.needsUpdate = true
+  })
+  return <primitive ref={ref} object={paddles} />
 }
 
 /**
@@ -117,11 +165,16 @@ export function RemoteAvatars() {
     return () => clearInterval(id)
   }, [camera])
 
-  return shown.map((s) => (
-    <Suspense key={`${s.sessionId}:${s.lookKey}`} fallback={null}>
-      <RemoteAvatar sessionId={s.sessionId} look={s.look} />
-    </Suspense>
-  ))
+  return (
+    <>
+      {shown.map((s) => (
+        <Suspense key={`${s.sessionId}:${s.lookKey}`} fallback={null}>
+          <RemoteAvatar sessionId={s.sessionId} look={s.look} />
+        </Suspense>
+      ))}
+      <RemotePaddles max={getQuality().remoteAvatars} />
+    </>
+  )
 }
 
 export default RemoteAvatars

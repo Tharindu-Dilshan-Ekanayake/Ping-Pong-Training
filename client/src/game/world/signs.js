@@ -1,6 +1,6 @@
 import { CanvasTexture, LinearMipmapLinearFilter, MeshBasicMaterial, PlaneGeometry, SRGBColorSpace } from 'three'
 
-import { ROLL_ZONE, SHOP_SIGN } from '@shared/world'
+import { ROLL_ZONE, SHOP_SIGN, SHOP_SIGN_FACING } from '@shared/world'
 
 import { ARCH_SIGN } from './rollZone'
 
@@ -81,7 +81,7 @@ export async function createPaintedSigns(maxTexture) {
   await document.fonts?.load(`64px ${FONT}`).catch(() => null)
 
   const zoneWidth = ROLL_ZONE.maxX - ROLL_ZONE.minX - 5
-  const zone = paintText('ROLL ZONE', maxTexture, {
+  const zone = paintText('SERVE ZONE', maxTexture, {
     aspect: 0.24,
     fill: ['#ffffff', '#ffffff', '#e6ecf5'],
     edge: '#9aa6b8',
@@ -92,18 +92,18 @@ export async function createPaintedSigns(maxTexture) {
   zone.rotation = [-Math.PI / 2, 0, 0]
 
   const boardWidth = SHOP_SIGN.maxZ - SHOP_SIGN.minZ - 3
-  const board = paintText('TIRES', maxTexture, {
+  const board = paintText('PADDLES', maxTexture, {
     aspect: 0.26,
     fill: ['#fffbd0', '#ffd21f', '#ff8a00'],
     edge: '#c2410c',
     slant: 0.14,
     worldWidth: boardWidth,
   })
-  // On the sign's navy face (0.4 west of its centre line), turned to the plaza.
-  board.position = [SHOP_SIGN.x - 0.43, SHOP_SIGN.top - 4.1, (SHOP_SIGN.minZ + SHOP_SIGN.maxZ) / 2]
-  board.rotation = [0, -Math.PI / 2, 0]
+  // On the sign's face (0.4 plaza-side of its centre line), turned to the plaza.
+  board.position = [SHOP_SIGN.x + 0.43 * SHOP_SIGN_FACING, SHOP_SIGN.top - 4.1, (SHOP_SIGN.minZ + SHOP_SIGN.maxZ) / 2]
+  board.rotation = [0, (SHOP_SIGN_FACING * Math.PI) / 2, 0]
 
-  const arch = paintText('ROLL!', maxTexture, {
+  const arch = paintText('SERVE!', maxTexture, {
     aspect: 0.3,
     fill: ['#fffbd0', '#ffd21f', '#ff8a00'],
     edge: '#c2410c',

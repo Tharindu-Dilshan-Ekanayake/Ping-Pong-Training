@@ -92,7 +92,7 @@ export function Pets() {
   }, [gl])
 
   useFrame((state, rawDelta) => {
-    processIconQueue(2)
+    processIconQueue()
     const group = groupRef.current
     if (!group) return
     const delta = Math.min(rawDelta, 0.05)

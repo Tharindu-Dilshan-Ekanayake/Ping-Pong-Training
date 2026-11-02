@@ -6,10 +6,10 @@ import { getSDK, safeCall } from './sdk'
  */
 
 /**
- * The game slug from the Boxity developer dashboard (VITE_GAME_SLUG in client/.env).
- * >>> FILL ME IN <<< while it still reads 'MY_GAME_SLUG'.
+ * The game slug from the Boxity developer dashboard: `ping-pong-training`. The deploy
+ * workflow passes it as VITE_GAME_SLUG; local builds fall back to it.
  */
-export const GAME_SLUG = import.meta.env.VITE_GAME_SLUG || 'MY_GAME_SLUG'
+export const GAME_SLUG = import.meta.env.VITE_GAME_SLUG || 'ping-pong-training'
 
 const GUEST_KEY = 'pp.guestId'
 

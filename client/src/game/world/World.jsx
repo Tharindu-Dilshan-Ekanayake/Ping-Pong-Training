@@ -11,15 +11,14 @@ import { buildPortalFrame } from './portalFrame'
 import { createPaintedSigns } from './signs'
 import { buildRollZone } from './rollZone'
 import { buildPads, buildShop } from './structures'
-import { buildWaterfall } from './waterfall'
 import { buildTerrain } from './terrain'
 
 /**
- * The static lobby: ground plane, every box (hills, trees, pads, stages) in one
+ * The static lobby: ground plane, every box (grandstands, flags, courts, stages) in one
  * InstancedMesh, and every non-box prop (pads, rings...) merged into one mesh. Three
  * draw calls for the whole environment.
  *
- * Built once. Quality only decides tree density at build time and whether the result
+ * Built once. Quality only decides flag density at build time and whether the result
  * casts/receives realtime shadows.
  */
 export function World() {
@@ -66,7 +65,6 @@ export function World() {
     buildShop(set, { detail: decorDensity >= 0.75 })
     buildRollZone(set, propBuilder, { detail: decorDensity >= 0.75 })
     buildPortalFrame(set)
-    buildWaterfall(set)
     buildEggStands(set)
 
     const map = createGroundMap(maxTexture)

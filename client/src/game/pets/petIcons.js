@@ -1,26 +1,35 @@
 import { useSyncExternalStore } from 'react'
 import { Color, DirectionalLight, HemisphereLight, PerspectiveCamera, Scene, WebGLRenderTarget } from 'three'
 
+import { PETS } from '@shared/balance'
+
 import { asToyInstance } from '../blocks'
 import { sharedMaterials } from '../materials'
 import { petGeometry } from './petModels'
 
 /**
  * Pet portraits for the UI, rendered from the same voxel models the world uses, so a
- * pet looks identical in the inventory and following you around.
+ * pet looks identical in the inventory and following you around. No image assets to
+ * download, and nothing is rendered twice.
  *
- * Rendered on demand into a small offscreen target with the game's own renderer (a
- * couple per frame at most), read back once, and kept as PNG data URLs. No image
- * assets to download, and nothing is rendered twice.
+ * Every portrait is rendered once while the loading screen is still up
+ * (renderAllPetIcons, from GameScene): reading pixels back from the GPU makes the main
+ * thread wait for it, a freeze nobody sees there but a hitch in the middle of play. They
+ * are kept as ImageBitmaps that PetIcon draws straight onto a small canvas - no PNG to
+ * encode or decode. Anything asked for later (after a lost WebGL context) goes through a
+ * queue, one at a time, read back asynchronously.
  */
 
 const SIZE = 128
-const urls = new Map()
+/** Pet id -> ImageBitmap. */
+const bitmaps = new Map()
 const queue = []
 const listeners = new Set()
 let renderer = null
 let rig = null
 let notifyScheduled = false
+/** A queued portrait is being read back: the next waits for it. */
+let busy = false
 const _previousClear = new Color()
 
 /** linear -> sRGB byte lookup: render targets come back in linear light. */
@@ -46,7 +55,8 @@ function buildRig() {
   return { scene, camera, target, mesh, pixels: new Uint8Array(SIZE * SIZE * 4) }
 }
 
-function render(id) {
+/** Draws `id` into the offscreen target. */
+function draw(id) {
   rig.mesh.geometry = petGeometry(id)
   const previousTarget = renderer.getRenderTarget()
   const previousClear = renderer.getClearColor(_previousClear)
@@ -55,15 +65,13 @@ function render(id) {
   renderer.setClearColor(0x000000, 0)
   renderer.clear()
   renderer.render(rig.scene, rig.camera)
-  renderer.readRenderTargetPixels(rig.target, 0, 0, SIZE, SIZE, rig.pixels)
   renderer.setRenderTarget(previousTarget)
   renderer.setClearColor(previousClear, previousAlpha)
+}
 
-  const canvas = document.createElement('canvas')
-  canvas.width = SIZE
-  canvas.height = SIZE
-  const ctx = canvas.getContext('2d')
-  const image = ctx.createImageData(SIZE, SIZE)
+/** The read-back pixels as an upright, sRGB, straight-alpha bitmap for `id`. */
+async function store(id) {
+  const image = new ImageData(SIZE, SIZE)
   const src = rig.pixels
   // GL rows run bottom-up; MSAA edges come back premultiplied.
   for (let y = 0; y < SIZE; y += 1) {
@@ -78,8 +86,7 @@ function render(id) {
       image.data[to + 3] = a
     }
   }
-  ctx.putImageData(image, 0, 0)
-  urls.set(id, canvas.toDataURL('image/png'))
+  bitmaps.set(id, await createImageBitmap(image))
 }
 
 /** Called once the renderer exists (from inside the Canvas). */
@@ -89,11 +96,24 @@ export function attachIconRenderer(gl) {
   rig ||= buildRig()
 }
 
-/** Renders up to `max` queued portraits. Runs in the frame loop; no React state. */
-export function processIconQueue(max = 2) {
-  if (!renderer || !rig || queue.length === 0) return
-  for (let i = 0; i < max && queue.length; i += 1) render(queue.shift())
-  // Re-render the portraits' React components after the frame, not inside it.
+/**
+ * Renders every pet's portrait now, behind the loading screen (GameScene calls it once
+ * the shaders are ready). Each read-back waits for the GPU, which is fine here and only
+ * here. A few milliseconds per pet on a real GPU.
+ */
+export function renderAllPetIcons() {
+  if (!renderer || !rig) return
+  for (const id of Object.keys(PETS)) {
+    if (bitmaps.has(id)) continue
+    draw(id)
+    renderer.readRenderTargetPixels(rig.target, 0, 0, SIZE, SIZE, rig.pixels)
+    // The bitmap is made off the main thread; the pixels are copied before the next pet.
+    store(id).then(notify, (err) => console.warn('[petIcons] portrait failed', id, err))
+  }
+}
+
+/** Re-renders the portraits' React components after the frame, not inside it. */
+function notify() {
   if (notifyScheduled) return
   notifyScheduled = true
   setTimeout(() => {
@@ -102,8 +122,28 @@ export function processIconQueue(max = 2) {
   }, 0)
 }
 
+/**
+ * Starts the next queued portrait, if none is under way. Runs in the frame loop; with
+ * everything rendered at start-up the queue is normally empty. The draw is tiny, and the
+ * read-back finishes later, off the frame.
+ */
+export function processIconQueue() {
+  if (busy || !renderer || !rig || queue.length === 0) return
+  busy = true
+  const id = queue.shift()
+  draw(id)
+  renderer
+    .readRenderTargetPixelsAsync(rig.target, 0, 0, SIZE, SIZE, rig.pixels)
+    .then(() => store(id))
+    .catch((err) => console.warn('[petIcons] portrait failed', id, err))
+    .finally(() => {
+      busy = false
+      notify()
+    })
+}
+
 function request(id) {
-  if (!id || urls.has(id) || queue.includes(id)) return
+  if (!id || bitmaps.has(id) || queue.includes(id)) return
   queue.push(id)
 }
 
@@ -112,8 +152,11 @@ function subscribe(fn) {
   return () => listeners.delete(fn)
 }
 
-/** Portrait URL for a pet species; null until it has been rendered. */
+/** Portrait bitmap for a pet species; null until it has been rendered. */
 export function usePetIcon(id) {
   request(id)
-  return useSyncExternalStore(subscribe, () => urls.get(id) ?? null)
+  return useSyncExternalStore(subscribe, () => bitmaps.get(id) ?? null)
 }
+
+/** The portraits' size in pixels (they're drawn onto canvases this big). */
+export const PET_ICON_SIZE = SIZE

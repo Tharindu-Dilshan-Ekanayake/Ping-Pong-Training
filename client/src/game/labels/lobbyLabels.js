@@ -1,7 +1,7 @@
 import { EGGS, PADS, PETS, RARITIES, SHOP, TIRES, WORLD_PORTALS, WORLDS } from '@shared/balance'
 import { formatNumber } from '@shared/format'
 import { isPadUnlocked } from '@shared/logic'
-import { EGG_STANDS, FREE_REWARD, PAD_HEIGHT, PAD_X, padCenterZ, PORTALS, SPHINX_STAND, TIRE_STANDS } from '@shared/world'
+import { EGG_STANDS, FREE_REWARD, PAD_HEIGHT, padCenterZ, PORTALS, SPHINX_STAND, TABLE_X, TIRE_STANDS } from '@shared/world'
 
 import { eggHeight } from '../world/eggs'
 import { PAD_THEMES } from '../world/structures'
@@ -20,11 +20,11 @@ export const TEXT = {
 
 const tint = (hex) => ['#ffffff', hex, hex]
 
-/** "4x HEALTH / 2 Rebirths", "1x HEALTH / UNLOCKED", "40x HEALTH / VERY OP! / 150K Wins"... */
+/** "4x POWER / 2 Rebirths", "1x POWER / UNLOCKED", "40x POWER / VERY OP! / 150K Wins"... */
 export function padLabelSpec(index, unlocked) {
   const pad = PADS[index]
   const theme = PAD_THEMES[index]
-  const lines = [{ text: `${formatNumber(pad.mult)}x HEALTH`, size: 54, icon: 'heart', gradient: tint(theme.text) }]
+  const lines = [{ text: `${formatNumber(pad.mult)}x POWER`, size: 54, icon: 'heart', gradient: tint(theme.text) }]
   if (unlocked) {
     lines.push({ text: pad.rebirths === 0 && !pad.product ? 'FREE' : 'UNLOCKED', size: 44, gradient: TEXT.green })
   } else if (pad.product) {
@@ -40,7 +40,7 @@ export function padLabelSpec(index, unlocked) {
 /** Largest a pad label can get, so its atlas slot fits every state. */
 const padReserve = (index) => {
   const pad = PADS[index]
-  const lines = [{ text: `${formatNumber(pad.mult)}x HEALTH`, size: 54, icon: 'heart' }]
+  const lines = [{ text: `${formatNumber(pad.mult)}x POWER`, size: 54, icon: 'heart' }]
   if (pad.product) {
     lines.push({ text: pad.tag, size: 46 })
     lines.push({ text: `${formatNumber(SHOP[pad.product].price)} Wins`, size: 42, icon: 'trophy' })
@@ -53,8 +53,8 @@ const padReserve = (index) => {
 export function padLabels(profile) {
   return PADS.map((pad, i) => ({
     id: `pad-${i}`,
-    // Over the pad, above a player bouncing on it.
-    position: [PAD_X, PAD_HEIGHT + (pad.product ? 6.6 : 5.9), padCenterZ(i)],
+    // Over the table, clear of the robot's head.
+    position: [TABLE_X, PAD_HEIGHT + (pad.product ? 4.6 : 3.9), padCenterZ(i)],
     spec: padLabelSpec(i, isPadUnlocked(profile, i)),
     reserve: padReserve(i),
     fade: 150,
@@ -78,7 +78,7 @@ const rarityLine = (tire) => {
     : { text: rarity.name.toUpperCase(), size: 34, gradient: tint(rarity.color) }
 }
 
-/** "MYTHIC" over "Diamond Tire", "+7M" and "1B Wins", "Owned" or "Equipped", as in the reference. */
+/** "MYTHIC" over "Diamond Paddle", "+7M" and "1B Wins", "Owned" or "Equipped". */
 export function standLabelSpec(index, state) {
   const tire = TIRES[index]
   const status =

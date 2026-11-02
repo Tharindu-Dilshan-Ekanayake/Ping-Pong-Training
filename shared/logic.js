@@ -8,6 +8,8 @@ import {
   GEM_PRODUCTS,
   HEALTH_PACKS,
   healthForLevel,
+  hitGrade,
+  hitReach,
   ITEMS,
   levelCap,
   MAX_EQUIPPED_PETS,
@@ -34,7 +36,6 @@ import {
   TROPHY_SPACING,
   TUTORIAL,
   WALL_MARGIN,
-  WALL_STOP,
   WORLD_PORTALS,
   WORLD_ZONES,
   ZONES,
@@ -304,20 +305,14 @@ export function zoneIndexAt(meter) {
 }
 
 /**
- * Where a tire with `health` ends up: rolling up to its reach and smashing every wall
- * on the way it's strong enough for, or stopped dead (WALL_STOP short) by the first
- * one it isn't. `blocked` is that wall's zone index (-1 if none); `broken` how many
- * walls it smashed.
+ * Where a serve with `health` (Power) lands: its full reach - nothing on the lane stops
+ * it. `broken` is how many stages it flew into past the first (the name stayed from the
+ * template's walls); `blocked` is always -1.
  */
-export function rollOutcome(health) {
-  const reach = rollReach(health)
+export function rollOutcome(health, reachFactor = 1) {
+  const reach = rollReach(health) * reachFactor
   let broken = 0
-  for (let i = 1; i < ZONES.length; i += 1) {
-    const zone = ZONES[i]
-    if (zone.start > reach) break
-    if (health < zone.wall) return { distance: zone.start - WALL_STOP, blocked: i, broken, reach }
-    broken += 1
-  }
+  for (let i = 1; i < ZONES.length && ZONES[i].start <= reach; i += 1) broken += 1
   return { distance: reach, blocked: -1, broken, reach }
 }
 
@@ -332,8 +327,9 @@ export function trophiesWithin(distance) {
 export const trophyValue = (meter, world = 0) => Math.max(1, Math.round(zonesOf(world)[zoneIndexAt(meter)].winsPerMeter * TROPHY_METERS))
 
 /**
- * Wins for a roll in `world` before multipliers: metres in each zone, trophies and
- * smashed walls. (All worlds' stages start at the same metres; only what they pay differs.)
+ * Wins for a serve in `world` before multipliers: every metre flown, at its stage's rate
+ * (further out pays more per metre), plus the trophies passed. (All worlds' stages start
+ * at the same metres; only what they pay differs.)
  */
 export function baseRollWins(distance, world = 0) {
   const zones = zonesOf(world)
@@ -343,7 +339,6 @@ export function baseRollWins(distance, world = 0) {
     const end = i + 1 < zones.length ? zones[i + 1].start : Infinity
     const metres = Math.max(0, Math.min(distance, end) - start)
     wins += metres * zones[i].winsPerMeter
-    if (i > 0 && distance >= start) wins += zones[i].smash
   }
   for (let m = TROPHY_FIRST; m <= distance; m += TROPHY_SPACING) wins += trophyValue(m, world)
   return wins
@@ -353,14 +348,18 @@ export function baseRollWins(distance, world = 0) {
 export const rollWinsAt = (health, world = 0) => baseRollWins(rollOutcome(health).distance, world)
 
 /**
- * A roll down the track. Health is not consumed. Returns everything the client needs
+ * A serve down the track. Health is not consumed. Returns everything the client needs
  * to replay it locally: distance, duration, the wall that stopped it, the Wins earned
  * (trophy positions follow from the distance) and any zone reached for the first time.
+ * `accuracy` is where the timing meter was stopped (0-1, see HIT_GRADES): a better hit
+ * flies further (hitReach) and the best pay extra Wins. Without it (Auto Serve) the
+ * serve is a plain x1 hit.
  */
-export function applyRoll(profile, now) {
-  const outcome = rollOutcome(profile.health)
+export function applyRoll(profile, now, accuracy = null) {
+  const outcome = rollOutcome(profile.health, hitReach(accuracy))
   const distance = Math.round(outcome.distance * 10) / 10
-  const multiplier = winsMultiplier(profile, now)
+  const grade = hitGrade(accuracy)
+  const multiplier = winsMultiplier(profile, now) * (grade ? grade.bonus : 1)
   const world = profile.world
   const wins = Math.max(1, Math.round(baseRollWins(distance, world) * multiplier))
   // First time into a zone: its discovery prize, paid once ever (once in each world).
@@ -389,6 +388,7 @@ export function applyRoll(profile, now) {
     blocked: outcome.blocked,
     broken: outcome.broken,
     multiplier,
+    hit: grade ? grade.id : null,
     best,
     duration,
     cooldown: duration + ROLL_RECOVERY,

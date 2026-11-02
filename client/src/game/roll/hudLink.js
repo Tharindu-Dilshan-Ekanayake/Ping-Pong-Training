@@ -11,6 +11,24 @@ import { zoneIndexAt } from '@shared/logic'
 
 const UPDATE_MS = 1000 / 15
 
+/** Each graded hit's overlay (HitFlash.jsx), by grade id, played by restarting its CSS animation. */
+const hitEls = {}
+export function setHitElement(grade, el) {
+  hitEls[grade] = el
+}
+/**
+ * Plays grade `grade`'s overlay from the start; safe to call from the frame loop (no
+ * React). The class comes off now and back on next frame, which restarts the animation
+ * - not by reading layout to force it, which recalculates the whole page right there,
+ * in the middle of the game's frame.
+ */
+export function showHit(grade) {
+  const el = hitEls[grade]
+  if (!el) return
+  el.classList.remove('pp-perfect-on')
+  requestAnimationFrame(() => el.classList.add('pp-perfect-on'))
+}
+
 /** The stacked text spans (outline and fill) that show the distance, and the zone's. */
 let distanceSpans = []
 let zoneSpans = []

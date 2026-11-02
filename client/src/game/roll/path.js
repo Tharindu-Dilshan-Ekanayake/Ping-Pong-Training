@@ -1,13 +1,15 @@
 import { Euler, Quaternion, Vector3 } from 'three'
 
-import { ROLL_LAUNCH, WALL_STOP, ZONES } from '@shared/balance'
+import { ROLL_LAUNCH } from '@shared/balance'
 import { SLOPE_ANGLE, TRACK_START_Z } from '@shared/world'
 
 import { KICK_IMPACT } from '../playerPose'
+import { BALL_SIZE, leapAt } from '../pong'
 
 /**
- * Geometry of the track: one long, straight canyon running north from the plaza's
- * edge, dropping downhill at SLOPE_ANGLE.
+ * Geometry of the serve lane: one long, straight rainbow lane across an open field,
+ * running north from the plaza's edge, dead level (SLOPE_ANGLE is 0; the maths still
+ * allows a slope).
  *
  * Track metre `m` is measured along the track from the start line (the plaza's north
  * edge). Before the start (m < 0) the ground is the plaza. Everything here is pure
@@ -61,133 +63,60 @@ export function slopeBoxPlacement(m, x, h) {
 /** Metres a world z is along the track (negative in the plaza). */
 export const meterAtZ = (z) => (z < TRACK_START_Z ? (TRACK_START_Z - z) / COS : TRACK_START_Z - z)
 
-// --- The roll ----------------------------------------------------------------------
+// --- A serve ------------------------------------------------------------------------
 
-/** The tire weaves gently from side to side down the canyon. */
-export const weaveX = (m) => Math.sin(m * 0.011) * 4 + Math.sin(m * 0.0037 + 1.3) * 2.5
-
-/** How thick the wooden walls between zones are (track.js builds them). */
-export const WALL_THICK = 1.2
-
-/** Radius of a rolling tire in the world: a big, chunky toy tire, nearly twice as tall as a player. */
-export const TIRE_SIZE = 1.6
+/** Radius of a served ball in the world (pong.BALL_SIZE; named for the template's tire). */
+export const TIRE_SIZE = BALL_SIZE
 
 const clamp01 = (x) => Math.min(1, Math.max(0, x))
-const smooth = (a, b, x) => {
-  const t = clamp01((x - a) / (b - a))
-  return t * t * (3 - 2 * t)
-}
-
-/** Seconds it takes to pick up speed after the push. */
-const PICK_UP = 0.9
 
 /**
- * Where along the track a tire is, `elapsed` seconds after setting off on a roll of
- * `duration` seconds from metre `from` to `to`: picking up speed, a long glide, and a
- * slow stop exactly there. `crash` keeps its speed to the end instead: it hits a wall.
- */
-export function rideMeter(elapsed, from, to, duration, crash = false) {
-  const t = Math.min(1, Math.max(0, elapsed / duration))
-  const glide = crash ? 1 - Math.pow(1 - t, 1.15) * (1 - 0.15 * t) : 1 - Math.pow(1 - t, 1.7)
-  const e = Math.max(0, elapsed) / PICK_UP
-  const pickUp = 1 - Math.exp(-e * e)
-  return from + (to - from) * (t >= 1 ? 1 : glide * pickUp)
-}
-
-// --- Ramps -------------------------------------------------------------------------
-
-/** Kickers across the canyon floor: one in the middle of every stage. */
-export const RAMP_FIRST = 150
-export const RAMP_SPACING = 300
-/** Each ramp rises RAMP_HEIGHT over its last RAMP_LENGTH metres up to its lip. */
-export const RAMP_LENGTH = 7
-export const RAMP_HEIGHT = 1
-/**
- * Off the lip a tire flies for about AIR_TIME seconds whatever its speed (so a jump
- * always reads, even at hundreds of m/s), higher the faster it hits it.
- */
-const AIR_TIME = 0.6
-const MIN_JUMP = 10
-const MAX_JUMP = 160
-const FULL_POP = 40
-
-/** No ramp this close to a zone's wall: a tire must meet a wall on the ground. */
-const WALL_CLEAR = 50
-const WALL_METERS = ZONES.slice(1).map((z) => z.start)
-const nearWall = (lip) => WALL_METERS.some((w) => Math.abs(lip - w) < WALL_CLEAR)
-
-/** The lip of the ramp whose run-up or jump `m` is in, or null. */
-function rampLip(m) {
-  if (m < RAMP_FIRST - RAMP_LENGTH) return null
-  const lip = RAMP_FIRST + Math.floor((m - RAMP_FIRST + RAMP_LENGTH) / RAMP_SPACING) * RAMP_SPACING
-  return nearWall(lip) ? null : lip
-}
-
-/** Every ramp lip in metres [m0, m1), for building them into the canyon. */
-export function rampLips(m0, m1, out = []) {
-  out.length = 0
-  const first = Math.max(RAMP_FIRST, RAMP_FIRST + Math.ceil((m0 - RAMP_FIRST) / RAMP_SPACING) * RAMP_SPACING)
-  for (let m = first; m < m1; m += RAMP_SPACING) if (!nearWall(m)) out.push(m)
-  return out
-}
-
-/**
- * Height off the floor at metre `m` from ramps: up the ramp's face, then an arc off the
- * lip. `lipSpeed` is how fast the tire left it (m/s). 0 elsewhere.
- */
-function rampHeight(m, lip, lipSpeed) {
-  if (lip === null) return 0
-  if (m < lip) return m >= lip - RAMP_LENGTH ? (RAMP_HEIGHT * (m - lip + RAMP_LENGTH)) / RAMP_LENGTH : 0
-  const length = Math.min(MAX_JUMP, Math.max(MIN_JUMP, lipSpeed * AIR_TIME))
-  const u = (m - lip) / length
-  if (u >= 1) return 0
-  const height = Math.min(3.6, Math.max(1.3, length * 0.04)) * Math.min(1, lipSpeed / FULL_POP)
-  return RAMP_HEIGHT * (1 - u) + height * 4 * u * (1 - u)
-}
-
-/** Seconds into the glide at which a roll reaches metre `m` (bisection, searching up to `t`). */
-function timeAtMeter(m, t, from, to, duration, crash) {
-  let lo = 0
-  let hi = t
-  for (let i = 0; i < 18; i += 1) {
-    const mid = (lo + hi) / 2
-    if (rideMeter(mid, from, to, duration, crash) < m) lo = mid
-    else hi = mid
-  }
-  return hi
-}
-
-// --- A whole roll --------------------------------------------------------------------
-
-/**
- * The tire waits this far ahead of you - its near edge about a leg's length away - and
- * sets off from there when you kick it.
+ * The ball waits this far ahead of you when you hit it, and the flight sets off from
+ * there.
  */
 export const PUSH_AHEAD = 2.3
 /**
- * Seconds into a roll that the kick lands and the tire sets off: the player winds up
- * and swings (playerPose.kickPose, over ROLL_LAUNCH), and the tire stays put until the
- * foot meets it. The roll's total time is the authority's, so the glide runs from here.
+ * Seconds into a serve that the paddle meets the ball: the player tosses it and swings
+ * (playerPose.servePose, over ROLL_LAUNCH), and it stays in the toss until then. The
+ * serve's total time is the authority's, so the flight runs from here.
  */
 export const KICK_HIT = ROLL_LAUNCH * KICK_IMPACT
-/** A tire that hits a wall it can't break stops dead and shatters this long before the roll's end. */
-const BOUNCE_TIME = 0.5
+
 /**
- * Once stopped, the tire wobbles and falls over onto its side like a coin settling:
- * leaning further and further while it swings round, then landing flat with a little
- * bounce. Over TOPPLE_TIME; it lands TOPPLE_LAND of the way through.
+ * The flight takes LAND_T of the serve's time after the hit; the rest is the ball
+ * hopping in its crater and settling into it.
  */
-const TOPPLE_TIME = 1.1
-export const TOPPLE_LAND = 0.7
+const LAND_T = 0.84
+/** Hops in the crater after it slams down, over the first SETTLE of the time left. */
+const BOUNCES = 2
+const SETTLE = 0.65
+/** How deep the ball sits in its crater once it has settled. */
+const SUNK = 0.3
+
 /**
- * The falling starts before it stops: over the last TIP_TIME seconds of the ride it
- * wobbles harder and harder, leans over to TIP_LEAN of the way down and curves off
- * that way (TIP_VEER metres, TIP_YAW radians round), like a coin running out of speed.
+ * How far along its distance (0-1) the ball is `t` of the way through its flight: off
+ * the paddle fast, slowing as it goes, and still moving as it slams down at the end.
  */
-const TIP_TIME = 1.6
-const TIP_LEAN = 0.5
-const TIP_VEER = 1.6
-const TIP_YAW = 0.7
+const progress = (t) => {
+  const x = clamp01(t)
+  return 1.5 * x - 0.5 * x * x
+}
+
+/**
+ * Seconds into a serve of `duration` (launch included) at which the ball has flown `f`
+ * (0-1) of its distance: 0.5 is the top of its arc, 1 the moment it slams down.
+ */
+export const serveTimeAt = (f, duration) => KICK_HIT + LAND_T * (1.5 - Math.sqrt(2.25 - 2 * clamp01(f))) * Math.max(0.1, duration - KICK_HIT)
+
+/**
+ * The flight: one high arc over the whole distance, slamming down exactly where the
+ * authority says it stops - cracking the lane open (Impact.jsx) - then a couple of hops
+ * in the crater and it settles into it. The arc's peak grows with the distance (a short
+ * serve is a lob, a long one soars), capped so the lane stays in view below the ball.
+ */
+/** Height of the ball's bottom off the lane as it leaves the paddle (centre at chest height). */
+const LAUNCH_AIR = 0.35
+export const flightPeak = (distance) => Math.min(32, 4 + 0.6 * Math.sqrt(Math.max(0, distance)))
 
 /** A fresh state for rideState to write into. */
 export const createRideState = () => ({
@@ -195,125 +124,88 @@ export const createRideState = () => ({
   launch: 0,
   meter: 0,
   speed: 0,
+  /** Height of the ball's bottom off the lane. */
   air: 0,
+  /** True while the ball is in its arc (until it first lands). */
   airborne: false,
-  /** Turn about the axle (radians): the rolling itself. */
+  /** 0 in the air; 1 once it has slammed down, then one more for every hop after. */
+  bounces: 0,
+  /** Turn about the ball's sideways axis (radians): its spin. */
   spin: 0,
-  /** Lean about the direction of travel: into the weave's turns, and falling over. */
+  /** Template leftovers rideTurn still reads: always 0 for a ball. */
   lean: 0,
-  /** 0-1: falling over onto its side once stopped. */
   topple: 0,
-  /** Turn about the vertical as it falls over (radians). */
   yaw: 0,
-  /** True once the tire has hit a wall it can't break. */
+  /** Never true: nothing on the lane stops a ball. */
   crashed: false,
   x: 0,
   position: new Vector3(),
 })
 
-/** Which way a tire falls over, from the roll itself so every client agrees. */
-export const toppleSide = (distance) => (Math.floor(distance) % 2 === 0 ? 1 : -1)
-
 /**
- * Everything about a rolling tire `elapsed` seconds into a roll - yours, or another
+ * Everything about a served ball `elapsed` seconds into a serve - yours, or another
  * player's replayed from the same numbers, so both move identically. `ride` is
- * `{ fromMeter, startX, distance, duration, blocked }` (duration includes the launch;
- * blocked > 0 means a wall stopped it, and the tire shatters on it: `crashed`); `lane` is a sideways offset so tires don't
- * overlap. Writes into `out` (see createRideState):
- *   phase    'launch' (popping out, being pushed) | 'ride' | 'stopped'
+ * `{ fromMeter, startX, distance, duration }` (duration includes the launch); `lane` is
+ * a sideways offset so balls don't overlap. Writes into `out` (see createRideState):
+ *   phase    'launch' (tossed, the paddle swinging) | 'ride' | 'stopped'
  *   launch   0-1 through the launch
- *   meter    metres along the track; speed in m/s along it
- *   air      height off the floor (ramps); airborne once off a lip
- *   position the tire's centre
+ *   meter    metres along the lane; speed in m/s along it
+ *   air      height off the lane; airborne until it first lands
+ *   position the ball's centre
  */
 export function rideState(elapsed, ride, lane, out) {
   const start = ride.fromMeter + PUSH_AHEAD
-  const crash = ride.blocked > 0
-  const rideTime = ride.duration - KICK_HIT
-  // A crash reaches the wall's face a bounce early, then bounces back to `distance`.
-  const glideTime = crash ? rideTime - BOUNCE_TIME : rideTime
-  const impact = crash ? ride.distance + WALL_STOP - WALL_THICK / 2 - TIRE_SIZE : ride.distance
+  const end = Math.max(start + 1, ride.distance)
+  const flightTime = Math.max(0.1, ride.duration - KICK_HIT)
   let meter = start
   let speed = 0
-  let air = 0
-  let lean = 0
-  let yaw = 0
-  let veer = 0
+  let air
   out.airborne = false
   out.crashed = false
-  out.topple = 0
+  out.bounces = 0
   if (elapsed < KICK_HIT) {
-    // Waiting for the kick.
     out.phase = 'launch'
     out.launch = clamp01(elapsed / KICK_HIT)
+    // Up with the player's jump smash, so the camera rises with them.
+    air = LAUNCH_AIR + leapAt(ride.hit, out.launch * KICK_IMPACT)
   } else {
-    const t = elapsed - KICK_HIT
+    const t = (elapsed - KICK_HIT) / flightTime
     out.launch = 1
-    out.phase = t >= rideTime ? 'stopped' : 'ride'
-    if (t < glideTime) {
-      meter = rideMeter(t, start, impact, glideTime, crash)
-      speed = (rideMeter(t + 0.05, start, impact, glideTime, crash) - meter) / 0.05
-      // Over a ramp: how far and high it flies depends on how fast it left the lip.
-      const lip = rampLip(meter)
-      let lipSpeed = speed
-      if (lip !== null && meter > lip) {
-        const tl = timeAtMeter(lip, t, start, impact, glideTime, crash)
-        lipSpeed = (rideMeter(tl + 0.05, start, impact, glideTime, crash) - rideMeter(tl, start, impact, glideTime, crash)) / 0.05
-      }
-      air = rampHeight(meter, lip, lipSpeed)
-      out.airborne = lip !== null && meter > lip && air > 0.05
-      // Lean into the weave's turns.
-      const turn = weaveX(meter + 1) - weaveX(meter)
-      lean = Math.max(-0.25, Math.min(0.25, turn * 4))
+    out.phase = t >= 1 ? 'stopped' : 'ride'
+    const peak = flightPeak(end - start)
+    if (t < LAND_T) {
+      const f = progress(t / LAND_T)
+      meter = start + (end - start) * f
+      speed = ((end - start) * (1.5 - (t / LAND_T))) / (LAND_T * flightTime)
+      // Off the paddle from as high as the jump smash took it.
+      const lift = LAUNCH_AIR + leapAt(ride.hit, KICK_IMPACT)
+      air = lift * (1 - f) + peak * 4 * f * (1 - f)
+      out.airborne = true
     } else {
-      // At rest: where it stopped - or, slammed into a wall too strong for it, dead
-      // against it, in pieces (Walls.jsx throws them).
-      meter = impact
-      out.crashed = crash
-    }
-    if (out.phase === 'stopped' && crash) {
-      out.crashed = true
-    } else if (out.phase === 'stopped') {
-      // Over the rest of the way: swinging round like a coin, then flat on its side
-      // with a little bounce.
-      const k = clamp01((t - rideTime) / TOPPLE_TIME)
-      const side = toppleSide(ride.distance)
-      if (k < TOPPLE_LAND) {
-        const f = k / TOPPLE_LAND
-        out.topple = TIP_LEAN + (1 - TIP_LEAN) * f * f
+      // Down in its crater: BOUNCES hops, each lower, then it settles into the hole.
+      meter = end
+      const u = (t - LAND_T) / (1 - LAND_T) / SETTLE
+      if (u < 1) {
+        air = peak * 0.09 * (1 - u) * Math.abs(Math.sin(Math.PI * BOUNCES * u))
+        out.bounces = 1 + Math.min(BOUNCES - 1, Math.floor(u * BOUNCES))
       } else {
-        const b = (k - TOPPLE_LAND) / (1 - TOPPLE_LAND)
-        out.topple = 1 - 0.07 * Math.sin(b * Math.PI) * (1 - b * 0.5)
+        air = -SUNK * clamp01((u - 1) * 4)
+        out.bounces = BOUNCES
       }
-      const wobble = Math.sin(k * 20) * 0.08 * (1 - Math.min(1, k / TOPPLE_LAND))
-      lean = side * (Math.PI / 2) * out.topple + wobble
-      yaw = side * (TIP_YAW + 1.1 * (1 - Math.pow(1 - Math.min(1, k / TOPPLE_LAND), 2)))
-      veer = side * TIP_VEER
-    } else if (!crash) {
-      // Running out of speed: wobbling harder and harder, leaning over and curving off
-      // to the side it'll fall to - already half down when it stops.
-      const side = toppleSide(ride.distance)
-      const tip = smooth(rideTime - TIP_TIME, rideTime, t)
-      const tip2 = tip * tip
-      out.topple = TIP_LEAN * tip2
-      lean += side * (Math.PI / 2) * out.topple + Math.sin(t * 11) * 0.14 * tip * (1 - tip2 * 0.6)
-      yaw = side * TIP_YAW * tip2
-      veer = side * TIP_VEER * tip2 * tip
     }
   }
-  // Ease from where it set off onto the weaving line.
+  // Ease from where it was hit onto its own line down the lane.
   const settle = clamp01((meter - start) / 40)
-  const x = ride.startX * (1 - settle) + (weaveX(meter) + lane) * settle + veer
+  const x = ride.startX * (1 - settle) + lane * settle
   out.meter = meter
   out.speed = speed
   out.air = air
-  out.lean = lean
-  out.yaw = yaw
+  out.lean = 0
+  out.topple = 0
+  out.yaw = 0
   out.spin = -(meter - start) / TIRE_SIZE
   out.x = x
-  // Lying down, its centre sinks to half its width off the floor.
-  const height = TIRE_SIZE + (TIRE_SIZE * 0.5 - TIRE_SIZE) * out.topple
-  trackPoint(meter, x, height + air, out.position)
+  trackPoint(meter, x, TIRE_SIZE + air, out.position)
   return out
 }
 
@@ -324,13 +216,10 @@ const _qa = new Quaternion()
 const _qb = new Quaternion()
 const _qc = new Quaternion()
 
-/**
- * The tire's turn for ride state `st`: swinging round as it falls over, leaning about
- * the track, spinning about its axle.
- */
+/** The ball's turn for ride state `st`: its spin about its sideways axis. */
 export function rideTurn(st, out) {
-  // Turn about the vertical (Y), lean about the direction of travel (Z), then the roll
-  // about the axle (X).
+  // Turn about the vertical (Y), lean about the direction of travel (Z), then the spin
+  // about X.
   _qc.setFromAxisAngle(_ay, st.yaw || 0)
   return out.multiplyQuaternions(_qc, _qa.setFromAxisAngle(_az, st.lean)).multiply(_qb.setFromAxisAngle(_ax, st.spin))
 }

@@ -22,7 +22,11 @@ import { getQuality } from '../store/quality'
 import { glowTime } from './glow'
 
 /**
- * Tires: what every player trains with and rolls down the track.
+ * Paddles. (The template's tires: the name stayed in the code, the look changed.) Each
+ * is the toy wheel below seen side on - its tread, rim and hub cap make the blade's
+ * rubber, face and centre sticker - squashed thin (PADDLE_THIN) on a handle.
+ *
+ * The original notes, still true of the blade:
  *
  * One tire mesh for all of them: a fat tread studded with knobs, a rim with a chrome lip
  * on both faces, raised spokes, and a domed hub cap ringed with lug nuts. What each tire
@@ -129,8 +133,12 @@ export const tireRubber = (id) => RUBBERS[id] || RUBBERS.bicycle
 export const tireRim = (id) => RIMS[id] || RIMS.bicycle
 export const tireAccent = (id) => ACCENTS[id] || ACCENTS.bicycle
 export const tireGlow = (id) => GLOWS[id] || GLOWS.bicycle
-/** How wide a tire is drawn: its X scale, on top of whatever size it's shown at. */
-export const tireWidth = (id) => styleOf(id).width
+/**
+ * How thick a paddle is drawn: its X scale, on top of whatever size it's shown at. The
+ * same for every paddle - a blade, not a fat wheel.
+ */
+export const PADDLE_THIN = 0.34
+export const tireWidth = () => PADDLE_THIN
 
 // --- Geometry ------------------------------------------------------------------------
 
@@ -148,6 +156,12 @@ const HUB_W = 0.56
 /** Tread knobs: per row round the tire, and the radius their bases sink to when flat. */
 const KNOBS = 22
 const KNOB_BASE = 0.95
+
+/**
+ * How much wider (X) than deep the handle is built, so that squashed to PADDLE_THIN it
+ * comes out about three quarters as thick as it is wide: a comfy, rounded grip.
+ */
+const GRIP_ROUND = 2.2
 
 /** Raised spokes on each face of the rim (tires with `spokes`). */
 const SPOKES = 6
@@ -170,8 +184,14 @@ function tagged(g, part) {
  * knobs, no lug nuts) - a lobby full of tires stays well inside a phone's budget.
  */
 const DETAIL = {
-  full: { tube: [8, 30], rim: 24, hub: 16, lip: [4, 24], dome: [18, 6], nuts: 4, knobs: KNOBS },
-  low: { tube: [6, 20], rim: 16, hub: 12, lip: [3, 16], dome: [12, 4], nuts: 0, knobs: 14 },
+  full: { tube: [8, 30], rim: 24, hub: 16, lip: [4, 24], dome: [18, 6], nuts: 4, knobs: KNOBS, spokes: SPOKES, grip: 12 },
+  low: { tube: [6, 20], rim: 16, hub: 12, lip: [3, 16], dome: [12, 4], nuts: 0, knobs: 14, spokes: SPOKES, grip: 8 },
+  /**
+   * For paddles seen from across the plaza (the showroom on LOW): the same shape, with
+   * the bits too small to see from there - knobs, spokes, nuts - left out. About a third
+   * of `low`'s triangles.
+   */
+  lite: { tube: [5, 14], rim: 10, hub: 8, lip: [2, 10], dome: [8, 3], nuts: 0, knobs: 0, spokes: 0, grip: 6 },
 }
 const baseGeometries = {}
 /**
@@ -207,13 +227,35 @@ function tireBaseGeometry(level) {
       pieces.push(tagged(nut, PART.CHROME))
     }
     // Spokes standing out of the face, hub to lip; hidden on tires without them.
-    for (let i = 0; i < SPOKES; i += 1) {
+    for (let i = 0; i < d.spokes; i += 1) {
       const spoke = new BoxGeometry(0.07, RIM_R - HUB_R * 1.3, 0.075)
       spoke.translate(side * (RIM_W / 2 + 0.035), HUB_R * 1.3 + (RIM_R - HUB_R * 1.3) / 2 - 0.02, 0)
       spoke.rotateX((i / SPOKES) * Math.PI * 2 + (side > 0 ? 0 : Math.PI / SPOKES))
       pieces.push(tagged(spoke, PART.SPOKE))
     }
   }
+  // The handle, down from the blade (-Y), in the hub cap's colour: a flared neck where
+  // it meets the blade, a rounded grip (built wide in X: the whole paddle is squashed
+  // to PADDLE_THIN across), two grip rings and a capped end.
+  const round = d.grip
+  const neck = new CylinderGeometry(0.36, 0.2, 0.42, round)
+  neck.scale(GRIP_ROUND, 1, 1)
+  neck.translate(0, -1.12, 0)
+  pieces.push(tagged(neck, PART.ACCENT))
+  const grip = new CylinderGeometry(0.2, 0.18, 1.12, round)
+  grip.scale(GRIP_ROUND, 1, 1)
+  grip.translate(0, -1.88, 0)
+  pieces.push(tagged(grip, PART.ACCENT))
+  for (const y of [-1.6, -2.15]) {
+    const ring = new CylinderGeometry(0.215, 0.215, 0.07, round)
+    ring.scale(GRIP_ROUND, 1, 1)
+    ring.translate(0, y, 0)
+    pieces.push(tagged(ring, PART.CHROME))
+  }
+  const cap = new CylinderGeometry(0.21, 0.24, 0.14, round)
+  cap.scale(GRIP_ROUND, 1, 1)
+  cap.translate(0, -2.5, 0)
+  pieces.push(tagged(cap, PART.CHROME))
   // Knobs: blocks standing out of the tread, two rows offset half a knob apart.
   for (let row = 0; row < 2; row += 1) {
     for (let i = 0; i < d.knobs; i += 1) {
@@ -725,21 +767,46 @@ const DESIGN_GLSL = /* glsl */ `
     vec3 base = diffuseColor.rgb;
     vec3 col = base;
     float emi = 0.0;
+    // The skin painter (tSkin) is big, and a shader compiler copies a function into
+    // every place it's called: so it's called once, here, set up for whichever part this
+    // fragment is, and the parts below use the result. Five calls made the shader
+    // several times larger and slower to build at start-up.
+    float rimFace = smoothstep(0.7, 0.9, abs(vTNormal.x));
+    bool useSkin = false;
+    int sk = skin;
+    vec3 sBase = base;
+    bool sFace = false;
+    if (vTPart > 4.5) {
+      // Spokes: wooden ones grained.
+      useSkin = skin == 1;
+      sk = 1;
+      sBase = vTAccent * 1.4;
+    } else if (vTPart > 3.5) {
+      useSkin = solid;
+      sFace = true;
+    } else if (vTPart > 2.5 || vTPart < 0.5) {
+      useSkin = skin > 0;
+    } else if (vTPart < 1.5) {
+      useSkin = solid;
+      sFace = rimFace > 0.5;
+    }
+    vec3 skinned = base;
+    if (useSkin) skinned = tSkin(sk, sBase, vTRim, vTAccent, vTLocal, ang, rr, sFace, emi);
     if (vTPart > 4.5) {
       // Spokes: the accent colour, polished (wooden ones grained).
-      col = skin == 1 ? tSkin(1, vTAccent * 1.4, vTRim, vTAccent, vTLocal, ang, rr, false, emi) : mix(vTAccent, vec3(0.9), 0.15);
+      col = skin == 1 ? skinned : mix(vTAccent, vec3(0.9), 0.15);
     } else if (vTPart > 3.5) {
       // Chrome: bright and cool, picking up a little of the rim's colour; on a solid
       // wheel (fruit, coin, cake...) just more of what it's made of.
-      col = solid ? tSkin(skin, base, vTRim, vTAccent, vTLocal, ang, rr, true, emi) : mix(vec3(0.86, 0.89, 0.94), vTRim, 0.18);
+      col = solid ? skinned : mix(vec3(0.86, 0.89, 0.94), vTRim, 0.18);
     } else if (vTPart > 2.5) {
       // Knobs: the tread's skin, their tops a touch lighter where they wear.
-      vec3 k = skin > 0 ? tSkin(skin, base, vTRim, vTAccent, vTLocal, ang, rr, false, emi) : base;
+      vec3 k = skinned;
       col = k * mix(0.85, 1.12, smoothstep(0.96, 1.02, rr));
     } else if (vTPart < 0.5) {
       float outer = smoothstep(0.86, 0.95, rr);
       if (skin > 0) {
-        col = tSkin(skin, base, vTRim, vTAccent, vTLocal, ang, rr, false, emi);
+        col = skinned;
       } else {
         // Rubber, cartoon-clean: V-shaped grooves round the tread, and a wide band in
         // the rim's colour round each sidewall, like a toy car's wheel.
@@ -757,9 +824,9 @@ const DESIGN_GLSL = /* glsl */ `
 
     } else if (vTPart < 1.5) {
       float r = rr / ${RIM_R.toFixed(2)};
-      float face = smoothstep(0.7, 0.9, abs(vTNormal.x));
+      float face = rimFace;
       if (solid) {
-        col = tSkin(skin, base, vTRim, vTAccent, vTLocal, ang, rr, face > 0.5, emi);
+        col = skinned;
       } else {
         float w = max(fwidth(r), 0.004);
         float m = 0.0;
@@ -893,11 +960,12 @@ export function tireMaterial() {
 /**
  * Up to `max` tires in one draw call. Place them with setMatrixAt (scale X by
  * tireWidth for the right tread) and style them with `setStyle(index, tireId)`; set
- * `.count` to how many to draw.
+ * `.count` to how many to draw. `level` (DETAIL: full, low, lite) overrides the model the
+ * quality preset would pick.
  */
-export function createTireMesh(max) {
+export function createTireMesh(max, level = null) {
   // Chosen when the mesh is made: the LOW preset gets the lighter tire.
-  const base = tireBaseGeometry(getQuality().decorDensity < 0.5 ? 'low' : 'full')
+  const base = tireBaseGeometry(level ?? (getQuality().decorDensity < 0.5 ? 'low' : 'full'))
   // Own geometry object (it needs its own per-instance attributes), sharing the
   // tire's vertex buffers.
   const geometry = new BufferGeometry()

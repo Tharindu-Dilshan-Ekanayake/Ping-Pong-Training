@@ -19,7 +19,7 @@ function TutorialBanner({ step }) {
   const onZone = useGame((s) => s.zone.rollZone)
   let text = current.text
   if (current.health) text += ` (${formatNumber(Math.min(health, current.health))}/${formatNumber(current.health)})`
-  if (current.event === 'roll' && onZone) text = 'Press ROLL!'
+  if (current.event === 'roll' && onZone) text = 'Press SERVE!'
   return (
     <div
       className="flex items-center"

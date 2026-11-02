@@ -2,11 +2,14 @@ import { useFrame } from '@react-three/fiber'
 import { useEffect, useMemo, useRef } from 'react'
 import { Color, Euler, Matrix4, Quaternion, Vector3 } from 'three'
 
-import { TIRES } from '@shared/balance'
+import { RARITIES, TIRES } from '@shared/balance'
 import { SHOP_STAGES, STAND_SIZE, TIRE_STANDS } from '@shared/world'
 
 import { useGame } from '../../store/game'
+import { getQuality } from '../../store/quality'
+import { createBallMesh, disposeBallMesh } from '../ball'
 import { BlockSet, disposeBlocks } from '../blocks'
+import { createGlowInstances, disposeGlow } from '../glow'
 import { standLabelSpec, standState } from '../labels/lobbyLabels'
 import { updateWorldLabel } from '../labels/registry'
 import { sharedMaterials, STYLE } from '../materials'
@@ -24,12 +27,19 @@ const _m = new Matrix4()
 const _q = new Quaternion()
 const _e = new Euler()
 const _p = new Vector3()
+const _ball = new Vector3()
+/** Each paddle's own ball orbits it: this far out, this big. */
+const ORBIT = 1.9
+const SHOWN_BALL = 0.42
+const _halo = new Vector3()
+const _haloQ = new Quaternion()
+const _haloS = new Vector3()
 
-/** Height of a stand's glowing cap above its pad; the tire floats over it. */
+/** Height of a stand's glowing cap above its pad; the paddle floats over it. */
 const CAP_TOP = 1.12
-/** Showroom tires' size (radius). */
-const SHOWN_SIZE = 1.45
-const HOVER = CAP_TOP + SHOWN_SIZE + 0.25
+/** Showroom paddles' size (blade radius); the handle hangs about 2.6 of it below. */
+const SHOWN_SIZE = 1.2
+const HOVER = CAP_TOP + SHOWN_SIZE * 2.6 + 0.2
 
 /**
  * Display stands, all in one block set. The first TIRE_STANDS.length blocks are the
@@ -61,7 +71,8 @@ function buildStands() {
   }
   // A red carpet down the aisle between the two stages, edged in gold.
   const [front, back] = SHOP_STAGES
-  const aisleX = (front.maxX + back.minX) / 2
+  // The gap between the two stages, whichever side of the plaza they're on.
+  const aisleX = (Math.max(front.minX, back.minX) + Math.min(front.maxX, back.maxX)) / 2
   const length = front.maxZ - front.minZ
   const midZ = (front.minZ + front.maxZ) / 2
   set.addOn(aisleX, 0, midZ, 2.4, 0.06, length, '#d8263a', STYLE.SMOOTH)
@@ -79,21 +90,36 @@ export function TireShop() {
   const equipped = useGame((s) => s.profile.equippedTire)
   const standsRef = useRef(null)
   const tiresRef = useRef(null)
+  const halosRef = useRef(null)
+  const ballsRef = useRef(null)
 
   const assets = useMemo(() => {
     const stands = buildStands()
     // Every showroom tire, in one draw call.
     const count = TIRES.length
-    const tires = createTireMesh(count)
+    // On LOW the showroom's paddles are the lite model: seen from across the plaza,
+    // their knobs and spokes are below a pixel, and 24 full ones cost more triangles
+    // than the rest of the lobby.
+    const tires = createTireMesh(count, getQuality().decorDensity < 0.5 ? 'lite' : null)
     TIRES.forEach((tire, i) => tires.setStyle(i, tire.id))
     tires.count = count
-    return { stands, tires }
+    // A soft glow behind each paddle in its rarity's colour: the rarer, the brighter it reads.
+    const halos = createGlowInstances(count, 0.45)
+    TIRES.forEach((tire, i) => halos.setColorAt(i, new Color(RARITIES[tire.rarity]?.color ?? '#ffffff')))
+    halos.count = count
+    // The ball that comes with each paddle, circling it.
+    const balls = createBallMesh(count, 'lite')
+    TIRES.forEach((tire, i) => balls.setBall(i, tire.id))
+    balls.count = count
+    return { stands, tires, halos, balls }
   }, [])
 
   useEffect(
     () => () => {
       disposeBlocks(assets.stands)
       disposeTireMesh(assets.tires)
+      disposeGlow(assets.halos)
+      disposeBallMesh(assets.balls)
     },
     [assets],
   )
@@ -112,22 +138,35 @@ export function TireShop() {
 
   useFrame((state) => {
     const tires = tiresRef.current
-    if (!tires) return
+    const halos = halosRef.current
+    const balls = ballsRef.current
+    if (!tires || !halos || !balls) return
     const t = state.clock.elapsedTime
     for (const stand of TIRE_STANDS) {
       const id = TIRES[stand.index].id
       _p.set(stand.x, stand.y + HOVER + Math.sin(t * 1.6 + stand.index) * 0.15, stand.z)
-      // Standing on edge, rim turned towards the plaza (west), swinging a little.
-      _q.setFromEuler(_e.set(0, Math.sin(t * 0.7 + stand.index) * 0.5, 0))
+      // Upright on its handle, turning slowly round like a trophy on a turntable.
+      _q.setFromEuler(_e.set(0, t * 0.6 + stand.index * 0.7, 0))
       tires.setMatrixAt(stand.index, tireMatrix(_p, _q, SHOWN_SIZE, id, _m))
+      // Set back behind the paddle as seen from the camera, so it glows round it, not over it.
+      _halo.copy(_p).sub(state.camera.position).normalize().multiplyScalar(1.6).add(_p)
+      halos.setMatrixAt(stand.index, _m.compose(_halo, _haloQ, _haloS.setScalar(SHOWN_SIZE * 4.2)))
+      // Its ball, circling the blade.
+      const a = t * 1.4 + stand.index
+      _ball.set(stand.x + Math.cos(a) * ORBIT, _p.y + Math.sin(a * 2) * 0.3, stand.z + Math.sin(a) * ORBIT)
+      balls.setMatrixAt(stand.index, _m.compose(_ball, _haloQ, _haloS.setScalar(SHOWN_BALL)))
     }
+    balls.instanceMatrix.needsUpdate = true
     tires.instanceMatrix.needsUpdate = true
+    halos.instanceMatrix.needsUpdate = true
   })
 
   return (
     <>
       <primitive ref={standsRef} object={assets.stands} />
       <primitive ref={tiresRef} object={assets.tires} />
+      <primitive ref={halosRef} object={assets.halos} />
+      <primitive ref={ballsRef} object={assets.balls} />
     </>
   )
 }

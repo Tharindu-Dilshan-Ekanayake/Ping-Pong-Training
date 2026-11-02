@@ -153,41 +153,71 @@ function launching(t, time) {
 }
 
 /**
- * Where in the kick (0-1) the foot meets the tire: the tire sets off at that moment
- * (roll/path.js, KICK_HIT).
+ * Where in the serve (0-1) the paddle meets the ball: the ball sets off at that moment
+ * (roll/path.js, KICK_HIT). (Named for the template's kick, which this swing replaced.)
  */
 export const KICK_IMPACT = 0.52
 
 /**
- * Kicking the tire off, `t` 0..1: weight shifts onto the left leg, the right leg swings
- * back with the knee folded and the body leans away, then it whips forward and the
- * knee straightens as the foot meets the tire (at KICK_IMPACT), the body leaning into
- * it with the arms thrown out for balance, and the leg follows through before settling.
+ * A big forehand, `t` 0..1, with `impact` where the paddle meets the ball and `size`
+ * how big a swing (1 for a serve, less for a rally): the paddle arm swings out and back
+ * with the shoulders turned away, then whips round and through the ball with the body
+ * turning into it, and follows through across the chest before settling. The other arm
+ * points out for balance.
  */
-function kickPose(t, w) {
-  const wind = smooth(0, KICK_IMPACT - 0.1, t) * (1 - smooth(KICK_IMPACT - 0.1, KICK_IMPACT, t))
-  const strike = smooth(KICK_IMPACT - 0.1, KICK_IMPACT, t) * (1 - smooth(0.72, 1, t))
+function forehand(t, impact, size, w) {
+  const wind = smooth(0, impact - 0.12, t) * (1 - smooth(impact - 0.12, impact, t))
+  const strike = smooth(impact - 0.12, impact, t) * (1 - smooth(impact + 0.12, 1, t))
+  const through = smooth(impact, impact + 0.18, t) * (1 - smooth(0.7, 1, t))
   const plant = smooth(0, 0.3, t) * (1 - smooth(0.85, 1, t))
-  // The kicking leg: back and bent, then forward and straight.
-  add('LegR1', 0.95, 0.04 * OUT_R, 0, wind * w)
-  add('LegR2', 1.6, 0, 0, wind * w)
-  add('LegR1', -1.4, 0.04 * OUT_R, 0, strike * w)
-  add('LegR2', 0.15, 0, 0, strike * w)
-  // The planted leg bends a little to take the weight.
-  add('LegL1', -0.14, 0.05 * OUT_L, 0, plant * w)
-  add('LegL2', 0.34, 0, 0, plant * w)
-  // Body: back, then into it.
-  add('Spine1', 0.14, 0, 0, wind * w)
-  add('Spine1', -0.32, 0, -0.18, strike * w)
-  add('Neck1', -0.12, 0, 0, strike * w)
-  // Arms swing against the leg and fling out for balance.
-  add('ArmL1', 0.5, 0.3 * OUT_L, 0, wind * w)
-  add('ArmR1', -0.5, 0.3 * OUT_R, 0, wind * w)
-  add('ArmL1', -0.9, 0.45 * OUT_L, 0, strike * w)
-  add('ArmR1', 0.7, 0.45 * OUT_R, 0, strike * w)
-  add('ArmL2', -0.3, 0, 0, plant * w)
-  add('ArmR2', -0.3, 0, 0, plant * w)
-  pose.lift += (-0.04 * wind + 0.06 * strike) * w
+  // The paddle arm: out to the side and back, then round and through.
+  add('ArmR1', 0.2 * size, 1.15 * OUT_R, -0.9 * size, wind * w)
+  add('ArmR2', -0.35, 0, 0, wind * w)
+  add('ArmR1', -0.55 * size, 1.05 * OUT_R, 0.7 * size, strike * w)
+  add('ArmR2', -0.15, 0, 0, strike * w)
+  add('ArmR1', -0.5 * size, 0.2 * OUT_R, 0.9 * size, through * w)
+  add('ArmR2', -0.9 * size, 0, 0, through * w)
+  // Shoulders: turned away, then into it.
+  add('Spine1', 0.05, 0, -0.35 * size, wind * w)
+  add('Spine1', -0.12 * size, 0, 0.35 * size, strike * w)
+  // The other arm out for balance.
+  add('ArmL1', -0.6 * size, 0.55 * OUT_L, 0, plant * w)
+  add('ArmL2', -0.4, 0, 0, plant * w)
+  // Knees bend into it.
+  add('LegL1', -0.18 * size, 0.05 * OUT_L, 0, plant * w)
+  add('LegL2', 0.36 * size, 0, 0, plant * w)
+  add('LegR1', 0.12 * size, 0.08 * OUT_R, 0, plant * w)
+  add('LegR2', 0.3 * size, 0, 0, plant * w)
+  pose.lift += -0.06 * size * plant * w
+}
+
+/** The serve: one big forehand through the tossed ball, over ROLL_LAUNCH. */
+function servePose(t, w) {
+  forehand(t, KICK_IMPACT, 1, w)
+}
+
+/**
+ * Rallying at a training table, `h` 0..1 through each TRAIN_INTERVAL: a quick, smaller
+ * forehand every cycle, meeting the ball at RALLY_IMPACT (pong.js times the ball to it).
+ */
+export const RALLY_IMPACT = 0.3
+function rallyPose(h, w) {
+  forehand(h, RALLY_IMPACT, 0.75, w)
+}
+
+/** Up in the air for a jump smash: knees tucked up, the free arm thrown high. */
+function tuck(w) {
+  add('LegL1', -1.0, 0.1 * OUT_L, 0, w)
+  add('LegL2', 1.5, 0, 0, w)
+  add('LegR1', -0.55, 0.1 * OUT_R, 0, w)
+  add('LegR2', 1.2, 0, 0, w)
+  add('ArmL1', -1.2, 0.4 * OUT_L, 0, w)
+}
+
+/** Holding the paddle ready: forearm up in front, the paddle out ahead. */
+function grip(w) {
+  add('ArmR1', -0.35, 0.12 * OUT_R, 0.15, w)
+  add('ArmR2', -0.85, 0, 0, w)
 }
 
 /** In the air off a ramp: arms flung out like wings, legs kicking apart. */
@@ -222,7 +252,10 @@ function cheering(time, w) {
 /**
  * @param {{ time?: number, speed?: number, maxSpeed?: number, grounded?: boolean,
  *   vy?: number, stride?: number, sliding?: boolean, launch?: number, stand?: number,
- *   air?: number, kick?: number, emote?: string|null }} motion
+ *   air?: number, kick?: number, hit?: number, emote?: string|null }} motion
+ *   `kick` (0-1) is the serve's swing and `leap` how high it has jumped for it (metres);
+ *   `hit` (0-1, below 0 for none) the rally swing
+ *   at a training table, each TRAIN_INTERVAL.
  *   `sliding` lies the body down on the board; `speed` is then the slide's speed.
  *   While sliding, `launch` (0-1) is the dive onto the board, `air` (0-1) how far into
  *   a jump's pose, and `stand` (0-1) getting up to celebrate at the end.
@@ -244,6 +277,8 @@ export function computePose(motion) {
     stand = 0,
     air = 0,
     kick = -1,
+    hit = -1,
+    leap = 0,
   } = motion
   for (const name of POSED_BONES) {
     const b = pose.bones[name]
@@ -262,16 +297,26 @@ export function computePose(motion) {
     }
     return pose
   }
-  // Kicking the tire off (`kick` 0-1 through the kick, below 0 or above 1 for none):
-  // eased in and out over the stance.
+  // Serving (`kick` 0-1 through the swing, below 0 or above 1 for none): eased in and
+  // out over the stance.
   const kicking = kick >= 0 && kick <= 1
   const kickWeight = kicking ? smooth(0, 0.1, kick) * (1 - smooth(0.9, 1, kick)) : 0
   if (kicking) {
     stance(1 - kickWeight, time)
-    kickPose(kick, kickWeight)
+    grip(1 - kickWeight)
+    servePose(kick, kickWeight)
+    // Off the ground for a jump smash: tucked up as high as the leap goes.
+    if (leap > 0) tuck(Math.min(1, leap / 0.8) * kickWeight)
+  } else if (hit >= 0 && grounded) {
+    // Rallying at a table: a swing every cycle, in the ready stance.
+    stance(1, time)
+    grip(0.6)
+    rallyPose(hit, 1)
   } else if (grounded) {
     const ratio = clamp01(speed / Math.max(maxSpeed, 0.001))
-    stance(1 - smooth(0.05, 0.4, ratio), time)
+    const still = 1 - smooth(0.05, 0.4, ratio)
+    stance(still, time)
+    grip(still)
     if (ratio > 0.02) stride(phase, ratio)
   } else {
     airborne(vy)

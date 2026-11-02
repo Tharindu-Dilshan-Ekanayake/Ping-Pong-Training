@@ -61,7 +61,7 @@ async function findDevServer() {
   for (const port of DEV_PORTS) candidates.push(`${window.location.protocol}//${window.location.hostname}:${port}`)
   for (const url of new Set(candidates)) {
     const health = await healthOf(url)
-    if (health?.ok && health.game === 'tire') return url
+    if (health?.ok && health.game === 'ping-pong-training') return url
   }
   return null
 }
@@ -334,7 +334,13 @@ async function joinSpecificRoom(gen, identity, target, lobby, Client, Callbacks)
     roomId = lastRoom.roomId
   } else if (launchRoomId && (lobby.mode === 'public' || lobby.mode === 'rejoin')) {
     roomId = launchRoomId
-    if (target.kind === 'matchmaker') endpoint = await findListedRoom(target.gameId, roomId)
+    if (target.kind === 'matchmaker') {
+      // The SDK has run before any request to the matchmaker (it's loaded before the
+      // game's code anyway; this is the belt to that braces).
+      await waitForSDK().catch(() => null)
+      if (gen !== generation) return true
+      endpoint = await findListedRoom(target.gameId, roomId)
+    }
     else endpoint = target.kind === 'dev' ? await findDevServer() : target.url
     if (gen !== generation) return true
     // Tried (or found gone/full): later connections matchmake normally.

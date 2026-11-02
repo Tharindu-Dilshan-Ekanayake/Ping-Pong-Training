@@ -151,6 +151,8 @@ export class GameRoom extends Room {
             duration: result.duration,
             blocked: result.blocked,
             tireId: profile.equippedTire,
+            // How well it was timed: others see the jump smash and the flight it made.
+            hit: result.hit,
             world: profile.world,
             x: player.x,
             z: player.z,

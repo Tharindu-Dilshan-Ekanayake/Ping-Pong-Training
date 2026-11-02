@@ -21,7 +21,8 @@ export function PerfProbe() {
     if (!window.__pp) return
     window.__ppScene = scene
     window.__ppCamera = camera
-  }, [scene, camera])
+    window.__ppGl = gl
+  }, [scene, camera, gl])
 
   useFrame(() => {
     const info = gl.info

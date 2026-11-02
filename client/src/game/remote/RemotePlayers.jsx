@@ -6,9 +6,11 @@ import { remotePlayers } from '../../net/remotePlayers'
 import { getQuality } from '../../store/quality'
 import { createBoxInstances, disposeBlocks } from '../blocks'
 import { sharedMaterials, STYLE } from '../materials'
-import { PAD_FLAT, PAD_TIRE_SIZE, padBounce, padTireTop } from '../padBounce'
+import { PAD_YAW, padAt } from '@shared/world'
+
+import { createBallMesh, disposeBallMesh } from '../ball'
+import { RALLY_BALL_SIZE, rallyBall } from '../pong'
 import { runtime } from '../runtime'
-import { createTireMesh, disposeTireMesh, tireWidth } from '../tire'
 import { hideNameplatesFrom, NAMEPLATE_POOL_SIZE, placeNameplate } from './nameplates'
 
 /** Remote players are drawn this far in the past, so 10 Hz updates interpolate. */
@@ -16,11 +18,6 @@ const INTERP_DELAY_MS = 110
 const MAX_REMOTES = 8
 const PARTS = 6
 const S = 0.36
-/** Training on a pad, facing out over the plaza, as your own character does. */
-const PAD_YAW = Math.PI / 2
-/** A tire lying flat: its axle turned from X to straight up. */
-const LIE_FLAT = new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), Math.PI / 2)
-const bounce = { height: 0, vy: 0, squash: 0 }
 
 /** Classic blocky figure, in studs-scaled units: [x, y(pivot), size, hangs from pivot]. */
 const PART_LAYOUT = [
@@ -127,8 +124,9 @@ function writeNameplate(plate, name, at, distance, maxDistance, camera, size, ui
  * Everyone else in the lobby: blocky avatars (one InstancedMesh for every limb of every
  * player), name tags and their pets (handed to the shared pet renderer). While someone
  * rolls they stay on the Roll Zone, watching; their tire is the ghost tire Roll.jsx
- * replays down the track. On a pad they bounce on their tire lying flat (drawn here for
- * everyone, real avatars included). Hidden past the preset's draw distance.
+ * replays down the track. At a training table their rally ball flies between them and
+ * the robot (drawn here for everyone, real avatars included). Hidden past the preset's
+ * draw distance.
  */
 export function RemotePlayers() {
   const camera = useThree((s) => s.camera)
@@ -140,15 +138,15 @@ export function RemotePlayers() {
     // Smooth toy boxes: the shared toy material, so no extra shader program.
     const body = createBoxInstances(MAX_REMOTES * PARTS, sharedMaterials().toy, STYLE.SMOOTH)
     body.castShadow = true
-    // Trainers' tires, lying flat on their pads.
-    const tires = createTireMesh(MAX_REMOTES)
+    // Trainers' rally balls.
+    const tires = createBallMesh(MAX_REMOTES)
     return { body, tires }
   }, [])
 
   useEffect(
     () => () => {
       disposeBlocks(assets.body)
-      disposeTireMesh(assets.tires)
+      disposeBallMesh(assets.tires)
       hideNameplatesFrom(0)
     },
     [assets],
@@ -180,16 +178,12 @@ export function RemotePlayers() {
       r.shadow.visible = visible
       const running = r.anim === 'run'
 
-      // Training: their tire flat on the pad, and them bouncing on it.
-      let lift = 0
-      if (visible && running && trainers < MAX_REMOTES) {
-        padBounce(t, bounce)
-        const top = padTireTop(tireWidth(r.tireId))
-        lift = top * (1 - 0.15 * bounce.squash) + bounce.height
-        _v.set(r.position.x, r.position.y + top / 2, r.position.z)
-        _s.set(PAD_TIRE_SIZE * PAD_FLAT * tireWidth(r.tireId) * (1 - 0.3 * bounce.squash), PAD_TIRE_SIZE * (1 + 0.06 * bounce.squash), PAD_TIRE_SIZE)
-        tires.setMatrixAt(trainers, _m.compose(_v, LIE_FLAT, _s))
-        tires.setStyle(trainers, r.tireId)
+      // Training: their rally ball, between them and the table's robot.
+      const pad = visible && running && trainers < MAX_REMOTES ? padAt(r.position.x, r.position.z) : -1
+      if (pad >= 0) {
+        rallyBall(t, pad, r.position.x, r.position.y, r.position.z, _v)
+        tires.setMatrixAt(trainers, _m.compose(_v, _q.identity(), _s.setScalar(RALLY_BALL_SIZE)))
+        tires.setBall(trainers, r.tireId)
         trainers += 1
       }
 
@@ -199,15 +193,14 @@ export function RemotePlayers() {
         if (walking) r.walkPhase += delta * (6 + Math.min(r.speed, 10) * 0.5)
         const swing = walking ? Math.sin(r.walkPhase) * 0.9 : 0
         _q.setFromAxisAngle(_up, running ? PAD_YAW : r.yaw)
-        _v.set(r.position.x, r.position.y + lift, r.position.z)
-        _base.compose(_v, _q, _s.set(1, 1, 1))
-        // In the air off the tire: arms up, as in a jump.
-        instance = writeFigure(body, instance, r, _base, swing, running && bounce.height > 0.12 ? -2.4 : null)
+        _base.compose(r.position, _q, _s.set(1, 1, 1))
+        // Rallying: the paddle arm up and swinging.
+        instance = writeFigure(body, instance, r, _base, swing, running ? -1.2 + Math.sin(t * 10) * 0.6 : null)
       }
 
       // Name tag, just above the head (players are 1.8 tall).
       if (visible) {
-        _v.set(r.position.x, r.position.y + 2.05 + lift, r.position.z)
+        _v.set(r.position.x, r.position.y + 2.05, r.position.z)
         plate = writeNameplate(plate, r.name, _v, distance, settings.remoteNameDistance, camera, size, r.uid)
       }
 

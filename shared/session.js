@@ -158,12 +158,16 @@ export class PlayerSession {
       if (result.ok) this.afterRebirth(result)
     },
 
-    /** Rolls your tire: only from the ROLL ZONE, and not while one is still out. */
-    roll(_payload, now) {
+    /**
+     * Serves your ball: only from the SERVE ZONE, and not while one is still out.
+     * `accuracy` (0-1) is where the timing meter stopped; absent for Auto Serve.
+     */
+    roll(payload, now) {
       if (now < this.busyUntil) return
       const p = this.getPosition()
       if (!inRollZone(p.x, p.z, ROLL_SLACK)) return
-      const result = applyRoll(this.profile, now)
+      const accuracy = Number.isFinite(payload?.accuracy) ? Math.min(1, Math.max(0, payload.accuracy)) : null
+      const result = applyRoll(this.profile, now, accuracy)
       this.busyUntil = now + result.cooldown * 1000
       this.rollingUntil = now + result.duration * 1000
       this.rollTimer = 0
@@ -177,6 +181,7 @@ export class PlayerSession {
         broken: result.broken,
         duration: result.duration,
         multiplier: result.multiplier,
+        hit: result.hit,
         best: result.best,
         tireId: this.profile.equippedTire,
       })

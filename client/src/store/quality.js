@@ -28,13 +28,14 @@ export const PRESETS = {
     /**
      * Other players are drawn this far away - the whole lobby - and the nearest
      * `remoteAvatars` of them within `remoteAvatarDistance` as their real Boxity avatar
-     * (anyone else as the blocky figure). On every preset that's everyone: a room holds
-     * 8, and a Boxity avatar is ~100 triangles and one draw call (plus one per worn
-     * item), so the 7 others cost less than one tire.
+     * (anyone else as the blocky figure, all of them one shared draw call). A Boxity
+     * avatar is ~100 triangles but one draw call per worn item too: on LOW the nearest
+     * five, close by, so a full room of well-dressed players stays inside a phone's
+     * draw-call budget. MEDIUM and HIGH show everyone.
      */
     remoteDrawDistance: 150,
-    remoteAvatars: 7,
-    remoteAvatarDistance: 150,
+    remoteAvatars: 5,
+    remoteAvatarDistance: 60,
     remoteNameDistance: 40,
     /** World labels fade out past this. */
     labelDistance: 70,
@@ -87,6 +88,14 @@ export const PRESETS = {
 
 const STORAGE_KEY = 'pp.quality'
 
+/**
+ * Resolution steps, as a fraction of the preset's pixel ratio. Below LOW, a weak PC or
+ * phone still under 45 FPS renders fewer pixels: the scene is the same, only softer.
+ * Shading every pixel is what an integrated GPU runs out of first, so this is the
+ * biggest single saving there is.
+ */
+export const RENDER_SCALES = [1, 0.85, 0.7, 0.6]
+
 function isMobileDevice() {
   if (typeof navigator === 'undefined') return false
   const ua = navigator.userAgent || ''
@@ -126,6 +135,8 @@ export const useQuality = create((set, get) => ({
    * take the new level at once.
    */
   rebuild: 0,
+  /** Index into RENDER_SCALES: how far resolution has been dropped to keep FPS up. */
+  renderStep: 0,
 
   setLevel: (level, manual = true) => {
     if (!QUALITY_LEVELS.includes(level)) return
@@ -145,15 +156,30 @@ export const useQuality = create((set, get) => ({
     }))
   },
 
-  /** Called by the performance monitor when FPS stays under budget. */
+  /**
+   * Called by the performance monitor when FPS stays under budget: drops a preset if it
+   * can (not one the player picked by hand), and once on LOW (or a hand-picked level),
+   * renders at a lower resolution instead, a step at a time.
+   */
   degrade: () => {
-    const { level, manual } = get()
-    if (manual) return
+    const { level, manual, renderStep } = get()
     const index = QUALITY_LEVELS.indexOf(level)
-    if (index <= 0) return
-    const next = QUALITY_LEVELS[index - 1]
-    console.info(`[quality] FPS under budget, dropping ${level} -> ${next}`)
-    set({ level: next, settings: PRESETS[next] })
+    if (!manual && index > 0) {
+      const next = QUALITY_LEVELS[index - 1]
+      console.info(`[quality] FPS under budget, dropping ${level} -> ${next}`)
+      set({ level: next, settings: PRESETS[next] })
+      return
+    }
+    if (renderStep + 1 < RENDER_SCALES.length) {
+      console.info(`[quality] FPS under budget, rendering at ${RENDER_SCALES[renderStep + 1] * 100}%`)
+      set({ renderStep: renderStep + 1 })
+    }
+  },
+
+  /** Called when FPS has plenty of headroom again: resolution comes back a step. */
+  recover: () => {
+    const { renderStep } = get()
+    if (renderStep > 0) set({ renderStep: renderStep - 1 })
   },
 }))
 

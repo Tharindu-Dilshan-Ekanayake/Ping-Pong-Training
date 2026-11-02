@@ -5,13 +5,14 @@ import { iconUrl } from './icons'
 import StrokeText from './StrokeText'
 
 const TIPS = [
-  'Stand on a training pad to gain Health automatically!',
-  'More Health = your tire rolls further and smashes tougher walls!',
-  'Rebirth at max level for x2, x3, x4... Health and a higher level cap.',
-  'Every wall you smash opens a new zone with more Wins per metre.',
-  'Spend Wins on stronger tires, pets and better pads.',
-  'Pets multiply all the Health you gain.',
-  'Your tire earns Health every second it rolls!',
+  'Step up to a ping pong table and rally to gain Power automatically!',
+  'More Power = your serve flies further, and every metre pays Wins!',
+  'Stop the serve meter in the middle for a PERFECT hit: x1.5 Wins!',
+  'Rebirth at max level for x2, x3, x4... Power and a higher level cap.',
+  'The further your ball flies, the more each metre pays.',
+  'Spend Wins on stronger paddles, pets and better tables.',
+  'Pets multiply all the Power you gain.',
+  'Your ball earns Power every second it flies!',
 ]
 
 /**
@@ -54,10 +55,24 @@ export function LoadingScreen({ done }) {
         <img src={iconUrl('tire')} alt="" width="150" height="150" draggable={false} />
       </div>
 
-      <h1 className="m-0 text-center leading-none" style={{ fontSize: 'clamp(40px, 9vw, 96px)', transform: 'rotate(-3deg)' }}>
-        <StrokeText stroke="0.16em" gradient="linear-gradient(180deg, #ffffff 0%, #ffffff 55%, #ffe36b 56%, #ffb21e 100%)">
-          +1 SLIDE DOWNHILL
-        </StrokeText>
+      {/* The game's name: PING PONG over a big rainbow TRAINING!, tilted like a sticker. */}
+      <h1 className="m-0 flex flex-col items-center text-center leading-none" style={{ transform: 'rotate(-3deg)' }}>
+        <span style={{ fontSize: 'clamp(36px, 8vw, 84px)' }}>
+          <StrokeText stroke="0.16em" gradient="linear-gradient(180deg, #ffffff 0%, #ffffff 55%, #ffe36b 56%, #ffb21e 100%)">
+            PING PONG
+          </StrokeText>
+        </span>
+        <span style={{ fontSize: 'clamp(44px, 10vw, 118px)', marginTop: '-0.08em' }}>
+          <StrokeText
+            stroke="0.15em"
+            gradient="linear-gradient(90deg, #ff4a4a 0%, #ff9a1e 18%, #ffe23a 36%, #4be05a 54%, #2fd0ff 72%, #b05cff 90%, #ff5fd2 100%)"
+          >
+            TRAINING!
+          </StrokeText>
+        </span>
+        <span className="text-base md:text-xl" style={{ marginTop: '0.4em' }}>
+          <StrokeText stroke={5}>TRAIN • SERVE • REBIRTH</StrokeText>
+        </span>
       </h1>
 
       <div className="w-[min(560px,80vw)]">

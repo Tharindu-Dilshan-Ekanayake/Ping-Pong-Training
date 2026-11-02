@@ -7,6 +7,7 @@ import InteractPrompt from './InteractPrompt'
 import LeftMenu from './LeftMenu'
 import HealthBar from './HealthBar'
 import PassButtons from './PassButtons'
+import HitFlash from './HitFlash'
 import RollButton from './RollButton'
 import RollOverlay from './RollOverlay'
 import StatsPanel from './StatsPanel'
@@ -61,6 +62,7 @@ export function HUD() {
         <InteractPrompt />
         <EggPanel />
         <RollOverlay />
+        <HitFlash />
       </div>
     </div>
   )

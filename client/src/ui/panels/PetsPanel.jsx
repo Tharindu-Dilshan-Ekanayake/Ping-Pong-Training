@@ -63,7 +63,7 @@ export function PetsPanel() {
         </span>
         <span style={{ fontSize: u(36) }}>
           <StrokeText stroke={u(7)} gradient={GRADIENTS.gold}>
-            Pet Health {formatMultiplier(petMultiplier(profile))}
+            Pet Power {formatMultiplier(petMultiplier(profile))}
           </StrokeText>
         </span>
         <span style={{ fontSize: u(30) }}>
@@ -108,7 +108,7 @@ export function PetsPanel() {
             </span>
             <span style={{ fontSize: u(30) }}>
               <StrokeText stroke={u(6)} fill={RARITIES[selectedInfo.rarity].color}>
-                {RARITIES[selectedInfo.rarity].name} · {formatMultiplier(selectedInfo.mult)} Health
+                {RARITIES[selectedInfo.rarity].name} · {formatMultiplier(selectedInfo.mult)} Power
               </StrokeText>
             </span>
           </div>

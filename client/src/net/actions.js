@@ -17,8 +17,11 @@ export function send(type, payload) {
 }
 
 export const actions = {
-  /** Rolls your tire; only counts standing on the ROLL ZONE (the ROLL! button sends it). */
-  roll: () => send('roll'),
+  /**
+   * Serves your ball; only counts standing on the SERVE ZONE (the SERVE! button sends
+   * it). `accuracy` (0-1) is where the timing meter stopped; leave it out for Auto Serve.
+   */
+  roll: (accuracy) => send('roll', Number.isFinite(accuracy) ? { accuracy } : undefined),
   enterPad: (pad) => send('enterPad', { pad }),
   leavePad: () => send('leavePad'),
   rebirth: () => send('rebirth'),

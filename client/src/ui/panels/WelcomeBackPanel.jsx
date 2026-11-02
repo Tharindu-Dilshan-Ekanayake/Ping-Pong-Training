@@ -21,7 +21,7 @@ export function WelcomeBackPanel() {
         <div className="flex items-center" style={{ gap: u(10), fontSize: u(84) }}>
           <Icon name="heart" size={u(96)} />
           <StrokeText stroke={u(15)} gradient={GRADIENTS.gold}>
-            +{formatNumber(data.health)} Health
+            +{formatNumber(data.health)} Power
           </StrokeText>
         </div>
         <ChunkyButton gradient={GRADIENTS.greenButton} onClick={closePanel} style={{ height: u(90), width: u(320) }}>

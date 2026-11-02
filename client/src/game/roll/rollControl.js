@@ -1,13 +1,18 @@
+import { Vector3 } from 'three'
+
+import { HIT_GRADES } from '@shared/balance'
 import { formatNumber } from '@shared/format'
 import { ROLL_RETURN } from '@shared/world'
 
 import { sfx } from '../../audio/sfx'
 import { getGame } from '../../store/game'
 import { fadeThrough } from '../../ui/fade'
-import { burst } from '../fx/fxQueue'
+import { burst, fireBurst } from '../fx/fxQueue'
+import { spawnScattered } from '../fx/popups'
 import { runtime } from '../runtime'
 import { zones } from '../worldLook'
-import { createRideState, KICK_HIT, meterAtZ, rideState } from './path'
+import { showHit } from './hudLink'
+import { createRideState, flightPeak, KICK_HIT, meterAtZ, PUSH_AHEAD, rideState, serveTimeAt } from './path'
 
 /**
  * How long the "+N Wins" result shows over your stopped tire before you're back: long
@@ -41,10 +46,12 @@ export const roll = {
   discovered: [],
   /** Zone index of the wall that stopped it, or -1. */
   blocked: -1,
-  /** How many walls it smashes on the way. */
+  /** How many stages it flies into past the first. */
   broken: 0,
   best: false,
   tireId: 'bicycle',
+  /** How well the serve was timed (HIT_GRADES id), or null for Auto Serve. */
+  hit: null,
   /** Where the roll started: metre along the track and how far to the side. */
   fromMeter: 0,
   startX: 0,
@@ -54,6 +61,23 @@ export const roll = {
   hitAt: 0,
   /** performance.now() when the kick landed and the tire set off. */
   kickedAt: 0,
+  /**
+   * A graded hit's hit-stop: when it started (performance.now(), 0 if none this serve),
+   * how long it lasts, how strong the camera's zoom, punch and shake are (0-1), and the
+   * roll clock's lag when it started (the freeze is measured from it).
+   */
+  freezeAt: 0,
+  freezeMs: 0,
+  freezePower: 0,
+  freezeLag: 0,
+  /**
+   * The ball slamming down at the end of its arc: when (performance.now()), where, and
+   * how high it fell from - what the crater and the flying chunks of lane need.
+   */
+  impactAt: 0,
+  impact: new Vector3(),
+  impactMeter: 0,
+  impactPeak: 0,
   frameKey: -1,
   /**
    * Slow motion: ms the roll's clock is behind real time. Every wall smashed slows the
@@ -68,6 +92,8 @@ export const roll = {
 /** How long each smash's slow motion lasts, how slow, and how fast the clock catches up. */
 const SLOW_MS = 220
 const SLOW_RATE = 0.25
+/** How fast the roll's clock runs during a hit-stop: all but frozen. */
+const FREEZE_RATE = 0.06
 const CATCH_UP = 0.4
 
 let timers = []
@@ -89,30 +115,88 @@ export function advanceRoll(clockTime) {
   const wasAirborne = roll.airborne
   const wasCrashed = roll.crashed
   const wasWaiting = roll.phase === 'launch'
-  const wasToppled = roll.topple
+  const wasBounces = roll.bounces
   const dt = roll.lastNow ? Math.min(now - roll.lastNow, 100) : 0
   roll.lastNow = now
-  if (now - roll.hitAt < SLOW_MS && !roll.crashed) roll.lag += dt * (1 - SLOW_RATE)
+  if (now - roll.freezeAt < roll.freezeMs) {
+    // From the clock, not summed frame by frame: frame steps are capped, so on a slow
+    // device a summed freeze would mostly slip away.
+    roll.lag = roll.freezeLag + (now - roll.freezeAt) * (1 - FREEZE_RATE)
+  } else if (now - roll.hitAt < SLOW_MS && !roll.crashed) roll.lag += dt * (1 - SLOW_RATE)
   else roll.lag = Math.max(0, roll.lag - dt * CATCH_UP)
   // All caught up by half a second before the stop.
   const left = roll.duration - (now - roll.startedAt) / 1000
   roll.lag = Math.min(roll.lag, Math.max(0, left - 0.5) * 400)
   rideState((now - roll.startedAt - roll.lag) / 1000, roll, 0, roll)
-  if (wasWaiting && roll.phase !== 'launch') roll.kickedAt = now
+  if (wasWaiting && roll.phase !== 'launch') {
+    roll.kickedAt = now
+    paddleHit(now)
+  }
   if (!wasAirborne && roll.airborne) {
     roll.tookOffAt = now
     sfx.jumpWhoosh()
   } else if (wasAirborne && !roll.airborne) {
+    // Slammed down from the top of its arc: the lane cracks open (Impact.jsx), the camera
+    // jolts, a moment of slow motion, and a boom.
     roll.landedAt = now
-    sfx.tireLand()
+    roll.hitAt = now
+    roll.impactAt = now
+    roll.impact.copy(roll.position)
+    roll.impactMeter = roll.meter
+    roll.impactPeak = flightPeak(roll.distance - roll.fromMeter - PUSH_AHEAD)
+    sfx.groundSmash(Math.min(1, roll.impactPeak / 32))
   }
-  // Flat on its side after the wobble: a thud.
-  if (wasToppled < 0.9 && roll.topple >= 0.9 && !roll.crashed) sfx.tireLand()
+  // Each hop in the crater after it: a tok, softer every time.
+  if (roll.bounces > wasBounces && wasBounces > 0) sfx.bounce(roll.bounces - 1)
   if (!wasCrashed && roll.crashed) {
     roll.hitAt = now
     sfx.wallBlock()
   }
   return roll
+}
+
+/**
+ * How each grade of hit looks and sounds as the paddle meets the ball: its burst off the
+ * paddle (FireBurst kind), confetti, how long time stands still and how hard the camera
+ * reacts (0-1). The rest - the leap, the title - follows the grade too.
+ */
+const HIT_FX = {
+  perfect: { fire: 'perfect', palette: 'gold', count: 60, speed: 12, freezeMs: 650, power: 1 },
+  great: { fire: 'great', palette: 'power', count: 34, speed: 9, freezeMs: 320, power: 0.65 },
+  good: { fire: 'good', palette: 'confetti', count: 16, speed: 6, freezeMs: 140, power: 0.35 },
+  weak: { fire: null, palette: null, count: 0, speed: 0, freezeMs: 0, power: 0 },
+}
+
+/**
+ * The paddle meeting the ball, up at the top of the jump smash (pong.leapAt): the grade
+ * the timing meter gave it, straight away, so you see why it flies as far as it does.
+ * GOOD, GREAT and PERFECT each get their own moment, bigger every step: time stands
+ * still for a beat while a burst flies off the paddle - sparkles, an electric-blue
+ * blast, a column of fire - and the grade's title slams onto the screen (HitFlash.jsx);
+ * then the ball blasts away with the lens punching wide and the camera shaking
+ * (Roll.jsx). A WEAK one just plops off the paddle.
+ */
+function paddleHit(now) {
+  const grade = HIT_GRADES.find((g) => g.id === roll.hit)
+  if (!grade) return
+  const fx = HIT_FX[grade.id]
+  const p = roll.position
+  if (fx.count) burst({ x: p.x, y: p.y, z: p.z, count: fx.count, palette: fx.palette, speed: fx.speed })
+  if (grade.id === 'weak') {
+    spawnScattered(grade.label, { scale: 1.3 })
+    sfx.weakHit()
+    return
+  }
+  // The freeze starts the moment the paddle met the ball on the roll's clock, not at
+  // whichever frame noticed: on a slow frame the ball would be well away by then.
+  roll.freezeAt = Math.min(now, roll.startedAt + roll.lag + KICK_HIT * 1000)
+  roll.freezeMs = fx.freezeMs
+  roll.freezePower = fx.power
+  roll.freezeLag = roll.lag
+  fireBurst(p.x, p.y, p.z, fx.fire)
+  showHit(grade.id)
+  sfx.gradeHit(grade.id)
+  timers.push(setTimeout(() => sfx.perfectRelease(fx.power), fx.freezeMs))
 }
 
 /** Starts a roll the authority already resolved: the tire pops out, then off it goes. */
@@ -133,12 +217,17 @@ export function beginRoll(result) {
     broken: result.broken || 0,
     best: result.best,
     tireId: result.tireId || game.profile.equippedTire,
+    hit: result.hit ?? null,
     fromMeter: meterAtZ(p.z),
     startX: p.x,
     landedAt: 0,
     tookOffAt: 0,
     hitAt: 0,
     kickedAt: 0,
+    freezeAt: 0,
+    freezeMs: 0,
+    freezePower: 0,
+    impactAt: 0,
     frameKey: -1,
     lag: 0,
     lastNow: 0,
@@ -165,9 +254,11 @@ export function beginRoll(result) {
       sfx.rollStart()
     }, KICK_HIT * 1000),
   )
-  if (!(result.blocked > 0)) {
-    timers.push(setTimeout(() => sfx.rollStop(), Math.max(0, result.duration - SKID_SOUND_LEAD) * 1000))
-  }
+  // A cartoon whistle as it falls from the top of its arc, ending as it slams down.
+  const apex = serveTimeAt(0.5, result.duration)
+  const land = serveTimeAt(1, result.duration)
+  timers.push(setTimeout(() => sfx.fallWhistle(land - apex), apex * 1000))
+  timers.push(setTimeout(() => sfx.rollStop(), Math.max(0, result.duration - SKID_SOUND_LEAD) * 1000))
   timers.push(
     setTimeout(() => {
       roll.stopped = true

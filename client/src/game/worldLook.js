@@ -23,10 +23,10 @@ export function perWorld(build) {
   return () => tables[activeWorld()] ?? tables[0]
 }
 
-/** The lobby's sky in each world: World 2's is a candy-pink sunset under violet. */
+/** The lobby's sky in each world: World 1's sunset (sceneStyle), World 2's minty teal. */
 const LOBBY_SKIES = [
   { top: new Color(SKY.top), horizon: new Color(SKY.horizon) },
-  { top: new Color('#7457f5'), horizon: new Color('#ffc4e8') },
+  { top: new Color('#1fa8b8'), horizon: new Color('#c8ffe8') },
 ]
 export const lobbySky = () => LOBBY_SKIES[activeWorld()] ?? LOBBY_SKIES[0]
 

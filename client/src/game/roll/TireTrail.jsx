@@ -66,9 +66,11 @@ const SMOKES = {
   cosmic: { colors: ['#ff9ed8', '#ffffff', '#ffe04a', '#9adfff'], rate: 45, rise: 0.9, ordered: true },
   infinity: { colors: [...RAINBOW, '#ffffff'], rate: 46, rise: 1, ordered: true },
 }
+/** A PERFECT hit's trail, whatever the paddle: a blazing streak of fire. */
+const PERFECT_SMOKE = { colors: ['#fff27a', '#ffb21e', '#ff6a1e', '#ff3b3b'], rate: 60, rise: 1.4, ordered: true }
 // Parsed once (and softened a little towards white): frame code never allocates.
 const WHITE = new Color('#ffffff')
-for (const s of Object.values(SMOKES)) s.palette = s.colors.map((c) => new Color(c).lerp(WHITE, 0.15))
+for (const s of [...Object.values(SMOKES), PERFECT_SMOKE]) s.palette = s.colors.map((c) => new Color(c).lerp(WHITE, 0.15))
 
 const vertexShader = /* glsl */ `
   attribute vec2 aPuff;
@@ -169,7 +171,7 @@ export function TireTrail() {
     if (!m) return
     const delta = Math.min(rawDelta, 0.05)
     const st = state.current
-    const smoke = SMOKES[roll.tireId] ?? SMOKES.bicycle
+    const smoke = roll.hit === 'perfect' ? PERFECT_SMOKE : (SMOKES[roll.tireId] ?? SMOKES.bicycle)
     const fades = m.geometry.getAttribute('aPuff')
 
     // Puff out new smoke while the tire is moving.
